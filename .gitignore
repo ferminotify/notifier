@@ -1,0 +1,7 @@
+.env
+
+notifier.log
+notes.txt
+samples.txt
+
+src/__pycache__/

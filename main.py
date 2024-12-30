@@ -19,6 +19,8 @@ def main():
 	'''
 	while True:
 
+		logger.info("Start")
+
 		# 1. Get all the subscribers data from the database
 		subs = get_subscribers() # sample ==> subscribers
 		logger.info(f"[1] Got {len(subs)} subscribers.")
@@ -120,13 +122,13 @@ def main():
 						if datetime.now(pytz.timezone("Europe/Rome")).time() > daily_notification_datetime_end.time():
 							if events_today:
 								send_notification(sub, [events_today], "Last Minute Notification")
-								logger.info(f"[>] Sent Last Minute Notification ({len(events_tomorrow)}) to {sub['email']}.")
+								logger.info(f"[>] Sent Last Minute Notification ({len(events_today)}) to {sub['email']}.")
 
 			except Exception as e:
 				logger.error(f"[X] Error sending notification to {sub['email']}: {e}")
 				errors += 1
 		
-		logger.info(f"[4] Notified all events with {errors} errors.")
+		logger.success(f"[4] Notified all events with {errors} errors.")
 
 		# 5. Sleep
 		logger.info("[5] Sleeping...")
