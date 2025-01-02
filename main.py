@@ -81,23 +81,21 @@ def main():
 				logger.debug(f"No notification preference set for {sub['email']}.")
 				continue
 
-			# 4.1. Get the events that the user has already been notified
+			# 4.1. Filter all events that don't match the user's keywords
+			_events_today = filter_events_kw(events_today, sub["tags"])
+			_events_tomorrow = filter_events_kw(events_tomorrow, sub["tags"])
+			if not _events_today and not _events_tomorrow:
+				continue
+
+			# 4.2. Get the events that the user has already been notified 
 			sent = get_all_sent_id(sub["id"])
-
-			# 4.2. Check if there are events to notify
 			# filter all events that have not been notified yet
-			events_today = [event for event in events_today if event["uid"] not in sent]
-			events_tomorrow = [event for event in events_tomorrow if event["uid"] not in sent]
-			if not events_today and not events_tomorrow:
+			_events_today = [event for event in _events_today if event["uid"] not in sent]
+			_events_tomorrow = [event for event in _events_tomorrow if event["uid"] not in sent]
+			if not _events_today and not _events_tomorrow:
 				continue
 
-			# 4.3. Filter all events that don't match the user's keywords
-			events_today = filter_events_kw(events_today, sub["tags"])
-			events_tomorrow = filter_events_kw(events_tomorrow, sub["tags"])
-			if not events_today and not events_tomorrow:
-				continue
-
-			# 4.4. Send the notifications
+			# 4.3. Send the notifications
 			# Check if it's time for Daily Notification
 			
 			# Convert the notification time to a datetime object
@@ -107,28 +105,28 @@ def main():
 				if sub["notification_time"] <= datetime.now(pytz.timezone("Europe/Rome")).time() <= daily_notification_datetime_end.time():
 					if sub["notification_day_before"]:
 						# Send the notification for today (usually empty - rare case new event added right now and not yet sent as last min) and tomorrow
-						send_notification(sub, [events_today, events_tomorrow], "Daily Notification")
-						logger.info(f"[>] Sent Daily Notification ({len(events_today) + len(events_tomorrow)}) to {sub['email']}.")
+						#send_notification(sub, [_events_today, _events_tomorrow], "Daily Notification")
+						logger.info(f"[>] Sent Daily Notification ({len(_events_today) + len(_events_tomorrow)}) to {sub['email']}.")
 					else:
-						if events_today:
+						if _events_today:
 							# Send the notification for today
-							send_notification(sub, [events_today], "Daily Notification")
-							logger.info(f"[>] Sent Daily Notification ({len(events_today)}) to {sub['email']}.")
+							#send_notification(sub, [_events_today], "Daily Notification")
+							logger.info(f"[>] Sent Daily Notification ({len(_events_today)}) to {sub['email']}.")
 				else: # Last Minute Notification
 					if sub["notification_day_before"]: # if user wants the Daily Notification the day before send today notifications as Last Minute
 						# if it's after the Daily Notification time send Last Minute Notification
 						if datetime.now(pytz.timezone("Europe/Rome")).time() > daily_notification_datetime_end.time():
-							send_notification(sub, [events_today, events_tomorrow], "Last Minute Notification")
-							logger.info(f"[>] Sent Last Minute Notification ({len(events_today) + len(events_tomorrow)}) to {sub['email']}.")
+							#send_notification(sub, [_events_today, events_tomorrow], "Last Minute Notification")
+							logger.info(f"[>] Sent Last Minute Notification ({len(_events_today) + len(events_tomorrow)}) to {sub['email']}.")
 						else: # if it's before the Daily Notification time send only today notifications as Last Minute (if not already sent)
-							if events_today:
-								send_notification(sub, [events_today], "Last Minute Notification")
-								logger.info(f"[>] Sent Last Minute Notification ({len(events_today)}) to {sub['email']}.")
+							if _events_today:
+								#send_notification(sub, [_events_today], "Last Minute Notification")
+								logger.info(f"[>] Sent Last Minute Notification ({len(_events_today)}) to {sub['email']}.")
 					else: # if it's after the Daily Notification time and user doesn't want the Daily Notification the day before send only today notifications as Last Minute
-						if events_today:
+						if _events_today:
 							if datetime.now(pytz.timezone("Europe/Rome")).time() > daily_notification_datetime_end.time():
-								send_notification(sub, [events_today], "Last Minute Notification")
-								logger.info(f"[>] Sent Last Minute Notification ({len(events_today)}) to {sub['email']}.")
+								#send_notification(sub, [_events_today], "Last Minute Notification")
+								logger.info(f"[>] Sent Last Minute Notification ({len(_events_today)}) to {sub['email']}.")
 
 			except Exception as e:
 				logger.error(f"[X] Error sending notification to {sub['email']}: {e}")

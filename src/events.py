@@ -43,6 +43,9 @@ def get_events() -> list[dict]:
 def filter_events_kw(events, keywords):
 	filtered_events = []
 
+	if not keywords:
+		return filtered_events
+
 	for keyword in keywords:
 	
 		for event in events:
@@ -52,7 +55,7 @@ def filter_events_kw(events, keywords):
 				logger.error(f"Error processing event title: {e}")
 				continue
 			
-			kw_in_subject = any((kw.lower() + " ") in event_title for kw in keyword)
+			kw_in_subject = keyword.lower() in event_title
 			if kw_in_subject and event not in filtered_events:
 				filtered_events.append(event)
 	
