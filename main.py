@@ -78,7 +78,7 @@ def main():
 
 			# 4.0. Check if the user has any notification preference
 			if sub["notification_preferences"] == 0:
-				logger.info(f"No notification preference set for {sub['email']}.")
+				logger.debug(f"No notification preference set for {sub['email']}.")
 				continue
 
 			# 4.1. Get the events that the user has already been notified
