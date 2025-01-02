@@ -156,13 +156,16 @@ def email_notification(sub: dict, events: list, type: str) -> None:
 	'''
 	logger.debug(f"Sending {type} email to {sub['email']}.")
 	# Prepare the email
+	# events are [0] today and [1] tomorrow
+	events_today = events[0] if len(events) > 0 else []
+	events_tomorrow = events[1] if len(events) > 1 else []
 	email = {
 		"Receiver": sub["email"],
-		"Raw": f"{type}:\n{len(events)} eventi.",
+		"Raw": f"{type}:\n{len(events_today + events_tomorrow)} event{'i' if len(events_today + events_tomorrow) > 1 else 'o'}"
 	}
-	email["Subject"] = f"{type} ({len(events)} event{'i' if len(events) > 1 else 'o'})" if type == 'Daily Notification' else type
+	email["Subject"] = f"{type} ({len(events_today + events_tomorrow)} event{'i' if len(events_today + events_tomorrow) > 1 else 'o'})" if type == 'Daily Notification' else type
 	try:
-		email["Body"] = get_email_body(sub, events, type)
+		email["Body"] = get_email_body(sub, events_today, events_tomorrow, type)
 	except Exception as e:
 		raise e
 	logger.debug(f"Generated notification mail body for {sub['email']}.")
@@ -177,14 +180,11 @@ def email_notification(sub: dict, events: list, type: str) -> None:
 #											  #
 #											  #
 ###############################################
-def get_email_body(sub: dict, events: list, type: str) -> str:
+def get_email_body(sub: dict, events_today: list, events_tomorrow: list, type: str) -> str:
 	'''
 	Get the HTML body of the email.
 	'''
 	try:
-		# Get today and tomorrow's events (if any) from events[0] and events[1]
-		events_today = events[0] if len(events) > 0 else []
-		events_tomorrow = events[1] if len(events) > 1 else []
 
 		giorns = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
 
