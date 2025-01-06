@@ -1,4 +1,7 @@
 import smtplib
+import email
+from email.header import decode_header
+from urllib.parse import parse_qs
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.message import EmailMessage
@@ -7,6 +10,7 @@ from dotenv import load_dotenv
 import imaplib
 from datetime import datetime, timezone, timedelta
 from jinja2 import Environment, FileSystemLoader
+from src.db import unsub_user
 env = Environment(loader=FileSystemLoader('src/email_templates'))
 from src.logger import Logger
 logger = Logger()
@@ -161,7 +165,8 @@ def email_notification(sub: dict, events: list, type: str) -> None:
 	events_tomorrow = events[1] if len(events) > 1 else []
 	email = {
 		"Receiver": sub["email"],
-		"Raw": f"{type}:\n{len(events_today + events_tomorrow)} event{'i' if len(events_today + events_tomorrow) > 1 else 'o'}"
+		"Raw": f"{type}:\n{len(events_today + events_tomorrow)} event{'i' if len(events_today + events_tomorrow) > 1 else 'o'}",
+		"List-Unsubscribe": f"<mailto:unsubscribe@fn.lkev.in?subject=Unsubscribe%20%3A%28&id={sub['id']}&token={sub['unsub_token']}&email={sub['email']}>, <https://fn.lkev.in/user/unsubscribe?id={sub['id']}&token={sub['unsub_token']}&email={sub['email']}>",
 	}
 	email["Subject"] = f"{type} ({len(events_today + events_tomorrow)} event{'i' if len(events_today + events_tomorrow) > 1 else 'o'})" if type == 'Daily Notification' else type
 	try:
@@ -207,3 +212,63 @@ def get_email_body(sub: dict, events_today: list, events_tomorrow: list, type: s
 		return body
 	except Exception as e:
 		raise Exception(f"Error generating email body: {e}")
+
+def unsub() -> int:
+	try:
+		imap = imaplib.IMAP4_SSL(os.getenv('EMAIL_SERVICE_URL'))
+		imap.login("unsubscribe@fn.lkev.in", os.getenv('EMAIL_UNSUB_PASSWORD'))
+		imap.select('INBOX')
+
+		# search for unsubscribe messages
+		status, messages = imap.search(None, 'SUBJECT "Unsubscribe :(" UNSEEN')
+
+		c = 0
+
+		# If no new messages, return
+		if status != 'OK' or not messages[0]:
+			logger.debug("No new unsubscribe requests.")
+			return c
+
+		message_ids = messages[0].split()
+
+		for msg_id in message_ids:
+			# Fetch the email by ID
+			status, msg_data = imap.fetch(msg_id, '(RFC822)')
+			if status != 'OK':
+				continue
+			for response_part in msg_data:
+				if isinstance(response_part, tuple):
+					# Parse the email content
+					msg = email.message_from_bytes(response_part[1])
+
+					subject, encoding = decode_header(msg['Subject'])[0]
+					if isinstance(subject, bytes):
+						subject = subject.decode(encoding if encoding else 'utf-8')
+
+					if subject == "Unsubscribe :(":
+						# Extract the body content (where we expect the unsubscribe data)
+						body = msg.get_payload(decode=True).decode()
+
+						# Parse the body for user info (email, id, unsub_token)
+						params = parse_qs(body)
+
+						user_email = params.get("email", [None])[0]
+						user_id = params.get("id", [None])[0]
+						unsub_token = params.get("unsub_token", [None])[0]
+
+						if user_email and user_id and unsub_token:
+							# You now have the user's email, ID, and unsub_token
+							logger.debug(f"Unsubscribe request for user: {user_email}, ID: {user_id}, Token: {unsub_token}")
+							# Unsubscribe the user
+							unsub_user(user_email, user_id, unsub_token)
+							imap.store(msg_id, '+FLAGS', '\\Flagged')
+							c += 1
+
+		# Close the connection and log out
+		imap.close()
+		imap.logout()
+
+	except Exception as e:
+		raise Exception(e)
+
+	return c

@@ -3,6 +3,7 @@ from src.telegram import register_new_telegram_user
 from src.events import get_events, filter_events_kw
 from datetime import datetime, timedelta
 from src.notifications import send_notification
+from src.email import unsub
 from time import sleep
 import pytz
 
@@ -19,6 +20,8 @@ def main():
 	'''
 	while True:
 
+		errors = 0
+
 		logger.info("Start")
 
 		# 1. Get all the subscribers data from the database
@@ -29,9 +32,16 @@ def main():
 		register_new_telegram_user(subs)
 		logger.info("[2] Registered new telegram users.")
 
-		# 3. Get all the events
+		# 3. Check if any user has unsubscribed
+		try:
+			logger.info(f"[3] Unsubscribed {unsub()} users.")
+		except Exception as e:
+			logger.error(f"[X] Error while checking for unsubscribed users: {e}")
+			errors += 1
+
+		# 4. Get all the events
 		events = get_events() # sample ==> events
-		# 3.1. Filter events of today and tomorrow
+		# 4.1. Filter events of today and tomorrow
 		today_rome = datetime.now(pytz.timezone("Europe/Rome")).replace(hour=0, minute=0, second=0, microsecond=0)
 		tomorrow_rome = today_rome + timedelta(days=1)
 		events_today = [
@@ -58,7 +68,7 @@ def main():
 				tomorrow_rome.date() <= datetime.strptime(event["start.date"], "%Y-%m-%d").date() < tomorrow_rome.date() + timedelta(days=1)
 			)
 		]
-		# 3.2 Reformat events time
+		# 4.2 Reformat events time
 		for event in events_today + events_tomorrow:
 			if event.get('start.date'):
 				event['start.date'] = datetime.strptime(event['start.date'], '%Y-%m-%d').strftime('%d/%m/%Y')
@@ -69,25 +79,24 @@ def main():
 			if event.get('end.dateTime'):
 				event['end.dateTime'] = datetime.strptime(event['end.dateTime'], '%Y-%m-%dT%H:%M:%S%z').strftime('%H:%M')
 		
-		logger.info(f"[3] Got {len(events_today)} events of today and {len(events_tomorrow)} of tomorrow.")	
+		logger.info(f"[4] Got {len(events_today)} events of today and {len(events_tomorrow)} of tomorrow.")	
 
-		# 4. Check for each user if there are events to notify
-		logger.info("[4] Checking for events to notify...")
-		errors = 0
+		# 5. Check for each user if there are events to notify
+		logger.info("[5] Checking for events to notify...")
 		for sub in subs:
 
-			# 4.0. Check if the user has any notification preference
+			# 5.0. Check if the user has any notification preference
 			if sub["notification_preferences"] == 0:
 				logger.debug(f"No notification preference set for {sub['email']}.")
 				continue
 
-			# 4.1. Filter all events that don't match the user's keywords
+			# 5.1. Filter all events that don't match the user's keywords
 			_events_today = filter_events_kw(events_today, sub["tags"])
 			_events_tomorrow = filter_events_kw(events_tomorrow, sub["tags"])
 			if not _events_today and not _events_tomorrow:
 				continue
 
-			# 4.2. Get the events that the user has already been notified 
+			# 5.2. Get the events that the user has already been notified 
 			sent = get_all_sent_id(sub["id"])
 			# filter all events that have not been notified yet
 			_events_today = [event for event in _events_today if event["uid"] not in sent]
@@ -95,7 +104,7 @@ def main():
 			if not _events_today and not _events_tomorrow:
 				continue
 
-			# 4.3. Send the notifications
+			# 5.3. Send the notifications
 			# Check if it's time for Daily Notification
 			
 			# Convert the notification time to a datetime object
@@ -132,10 +141,10 @@ def main():
 				logger.error(f"[X] Error sending notification to {sub['email']}: {e}")
 				errors += 1
 		
-		logger.success(f"[4] Notified all events with {errors} errors.")
+		logger.success(f"[5] Notified all events with {errors} errors.")
 
 		# 5. Sleep
-		logger.info("[5] Sleeping...")
+		logger.info("[6] Sleeping...")
 		sleep(300)
 
 if __name__ == "__main__":
