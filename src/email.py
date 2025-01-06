@@ -241,7 +241,7 @@ def unsub() -> int:
 					# Parse the email content
 					msg = email.message_from_bytes(response_part[1])
 
-					subject, encoding = decode_header(msg['Subject'])[0]
+					subject, encoding = decode_header(msg['Subject'] or '')[0]
 					if isinstance(subject, bytes):
 						subject = subject.decode(encoding if encoding else 'utf-8')
 
