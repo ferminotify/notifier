@@ -11,6 +11,7 @@ import imaplib
 from datetime import datetime, timezone, timedelta
 from jinja2 import Environment, FileSystemLoader
 from src.db import unsub_user
+import traceback
 env = Environment(loader=FileSystemLoader('src/email_templates'))
 from src.logger import Logger
 logger = Logger()
@@ -280,6 +281,7 @@ def unsub() -> int:
         imap.logout()
 
     except Exception as e:
+        logger.error(traceback.format_exc())
         logger.error(f"Error while checking for unsubscribed users: {e}")
         raise
 
