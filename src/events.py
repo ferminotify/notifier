@@ -49,14 +49,11 @@ def filter_events_kw(events, keywords):
 	for keyword in keywords:
 	
 		for event in events:
-			try:
-				event_title = "".join(c for c in event["summary"].lower() if c.isalpha() or c.isdecimal() or c == ' ') + " "
-			except Exception as e:
-				logger.error(f"Error processing event title: {e}")
-				continue
-			
-			kw_in_subject = keyword.lower() in event_title
-			if kw_in_subject and event not in filtered_events:
+			# split event summary by spaces and punctuation
+			event_summary = event['summary'].split()
+			event_summary = [sub_item for item in event_summary for sub_item in item.replace('.', ',').replace('-', ',').split(',') if sub_item]
+			# check if keyword is in event summary
+			kw_in_summary = keyword.lower() in [word.lower() for word in event_summary]
+			if kw_in_summary and event not in filtered_events:
 				filtered_events.append(event)
-	
 	return filtered_events
