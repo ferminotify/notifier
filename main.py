@@ -7,7 +7,7 @@ from src.email import unsub
 from time import sleep
 import pytz
 
-from src.logger import Logger
+from src.logger import Logger, clearDBLog
 logger = Logger()
 
 '''
@@ -143,8 +143,12 @@ def main():
 		
 		logger.success(f"[5] Notified all events with {errors} errors.")
 
-		# 5. Sleep
-		logger.info("[6] Sleeping...")
+		# 6. Clear DB Logs if last log is success
+		clearDBLog()
+		logger.console("[6] Cleared DB Logs.")
+
+		# 7. Sleep
+		logger.console("[7] Sleeping...")
 		sleep(300)
 
 if __name__ == "__main__":

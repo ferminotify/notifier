@@ -41,6 +41,11 @@ class Logger:
             self.logger.error("Error enabled")
             self.logger.critical("Critical enabled")
 
+    def console(self, message):
+        self.logger.info(message)
+        if self.file_handler:
+            self.file_handler.flush()
+
     def info(self, message):
         logDB("info", message)
         self.logger.info(message)
@@ -123,9 +128,25 @@ def logDB(type: str, message: str = None) -> None:
 
     DB = NotifierDB()
     DB.cursor.execute(f"""
-        INSERT INTO logs(type, message, timestamp)
+        INSERT INTO logs_notifier(type, message, timestamp)
         VALUES (%s, %s, %s)
     """, (type, message, datetime.now(pytz.timezone('Europe/Rome'))))
     DB.connection.commit()
+    DB.close_connection()
+    return
+
+def clearDBLog():
+    # if last log is success then clear all logs except success or error
+    DB = NotifierDB()
+    DB.cursor.execute(f"""
+        SELECT * FROM logs_notifier ORDER BY timestamp DESC LIMIT 1
+    """)
+    response = DB.cursor.fetchall()
+    DB.connection.commit()
+    if response[0][1] == "success":
+        DB.cursor.execute(f"""
+            DELETE FROM logs_notifier WHERE type != 'success' AND type != 'err'
+        """)
+        DB.connection.commit()
     DB.close_connection()
     return
