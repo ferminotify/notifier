@@ -20,7 +20,7 @@ def main():
 	'''
 	while True:
 
-		time_start = datetime.now()
+		time_start = datetime.now(pytz.timezone("Europe/Rome"))
 
 		errors = 0
 
@@ -143,7 +143,7 @@ def main():
 				logger.error(f"[X] Error sending notification to {sub['email']}: {e}")
 				errors += 1
 		
-		time_diff = datetime.now() - time_start
+		time_diff = datetime.now(pytz.timezone("Europe/Rome")) - time_start
 
 		logger.success(f"[5] Notified all events with {errors} errors [{int(time_diff.total_seconds() // 60)}m {int(time_diff.total_seconds() % 60):02d}s].")
 
