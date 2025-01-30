@@ -20,6 +20,8 @@ def main():
 	'''
 	while True:
 
+		time_start = datetime.now()
+
 		errors = 0
 
 		logger.info("Start")
@@ -141,7 +143,9 @@ def main():
 				logger.error(f"[X] Error sending notification to {sub['email']}: {e}")
 				errors += 1
 		
-		logger.success(f"[5] Notified all events with {errors} errors.")
+		time_diff = datetime.now() - time_start
+
+		logger.success(f"[5] Notified all events with {errors} errors [{int(time_diff.total_seconds() // 60)}m {int(time_diff.total_seconds() % 60):02d}s].")
 
 		# 6. Clear DB Logs if last log is success
 		clearDBLog()
