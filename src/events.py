@@ -3,6 +3,7 @@ logger = Logger()
 
 import requests
 import csv
+import re
 
 """
 All the operations involving the Fermi Calendar and its events.
@@ -47,13 +48,11 @@ def filter_events_kw(events, keywords):
 		return filtered_events
 
 	for keyword in keywords:
-	
-		for event in events:
-			# split event summary by spaces and punctuation
-			event_summary = event['summary'].split()
-			event_summary = [sub_item for item in event_summary for sub_item in item.replace('.', ',').replace('-', ',').split(',') if sub_item]
-			# check if keyword is in event summary
-			kw_in_summary = keyword.lower() in [word.lower() for word in event_summary]
-			if kw_in_summary and event not in filtered_events:
-				filtered_events.append(event)
+
+		keyword = re.escape(keyword)
+		filtered_events = [
+			event for event in events
+			if re.search(r"\b" + keyword + r"\b", event.get("summary", ""), re.IGNORECASE)
+		]
+		
 	return filtered_events

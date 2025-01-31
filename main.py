@@ -127,8 +127,8 @@ def main():
 					if sub["notification_day_before"]: # if user wants the Daily Notification the day before send today notifications as Last Minute
 						# if it's after the Daily Notification time send Last Minute Notification
 						if datetime.now(pytz.timezone("Europe/Rome")).time() > daily_notification_datetime_end.time():
-							send_notification(sub, [_events_today, events_tomorrow], "Last Minute Notification")
-							logger.info(f"[>] Sent Last Minute Notification ({len(_events_today) + len(events_tomorrow)}) to {sub['email']}.")
+							send_notification(sub, [_events_today, _events_tomorrow], "Last Minute Notification")
+							logger.info(f"[>] Sent Last Minute Notification ({len(_events_today) + len(_events_tomorrow)}) to {sub['email']}.")
 						else: # if it's before the Daily Notification time send only today notifications as Last Minute (if not already sent)
 							if _events_today:
 								send_notification(sub, [_events_today], "Last Minute Notification")

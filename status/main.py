@@ -1,6 +1,7 @@
 '''
 Check the status of the notifier and send a message to the admin if the notifier is down.
 Designed to be run as a separate process on another server in order to run backup notifier.
+	The backup notifier process connects to another logging table (logs_backup_notifier) to keep checking the status of the main notifier.
 '''
 from src.db import DB
 from src.telegram import tg_notification, delete_message
