@@ -33,7 +33,7 @@ def main():
 				error_id = tg_notification(os.getenv("TELEGRAM_CHAT_ID"), f"***⚠️ Notifier is down***: ```{log[0][2]}```")
 				error = True
 				print("Notifeir down - error message: " + str(error_id))
-				process = subprocess.Popen(['python', script_path])
+				process = subprocess.Popen(['python3', script_path])
 			elif status == "info":
 				# if more than 15 minutes have passed since the last notification, alert user
 				log = db.get_notifier_log_last()
@@ -41,7 +41,7 @@ def main():
 					error_id = tg_notification(os.getenv("TELEGRAM_CHAT_ID"), f"***⚠️ Notifier is down***: more than 15 minutes have passed since ```{log[0][2]}```")
 					error = True
 					print("Notifier is loading for more than 15 minutes - error message: " + str(error_id))
-					process = subprocess.Popen(['python', script_path])
+					process = subprocess.Popen(['python3', script_path])
 		db.close_connection()
 		if error:
 			print("Sleeping for " + str(error_sleep) + " seconds")
