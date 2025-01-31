@@ -48,7 +48,7 @@ class Telegram:
             )
             logger.debug(f"Notification sent to {message['receiver']}.")
         except Exception as e:
-            logger.error(f"Failed to send notification: {e}")
+            logger.debug(f"Failed to send notification: {e}") # most likely the user has blocked the bot
 
     def user_welcome(self, telegram_id: str) -> None:
         """Sends a welcome confirmation message to the user to notify him
