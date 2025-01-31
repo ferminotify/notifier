@@ -18,30 +18,28 @@ def main():
 	while True:
 		print("===\nChecking status")
 		db = DB()
-		status = db.get_notifier_status()
+		log = db.get_notifier_log_last()
 		if error:
 			# check if notifier is back up
-			if status == "success":
+			if log[0][1] == "success":
 				delete_message(error_id)
 				error = False
 				print("Notifier up - deleted error message " + str(error_id))
-				process.terminate()
-				process.wait()
+				#process.terminate()
+				#process.wait()
 		else:
-			if status == "error":
-				log = db.get_notifier_log_last()
+			if log[0][1] == "error":
 				error_id = tg_notification(os.getenv("TELEGRAM_CHAT_ID"), f"***⚠️ Notifier is down***: ```{log[0][2]}```")
 				error = True
 				print("Notifeir down - error message: " + str(error_id))
-				process = subprocess.Popen(['python3', script_path])
-			elif status == "info":
+				#process = subprocess.Popen(['python3', script_path])
+			else:
 				# if more than 10 minutes have passed since the last notification, alert user
-				log = db.get_notifier_log_last()
 				if (time() - log[0][0].timestamp()) > 600:
 					error_id = tg_notification(os.getenv("TELEGRAM_CHAT_ID"), f"***⚠️ Notifier is down***: more than 15 minutes have passed since ```{log[0][2]}```")
 					error = True
 					print("Notifier is loading for more than 15 minutes - error message: " + str(error_id))
-					process = subprocess.Popen(['python3', script_path])
+					#process = subprocess.Popen(['python3', script_path])
 		db.close_connection()
 		if error:
 			print("Sleeping for " + str(error_sleep) + " seconds")

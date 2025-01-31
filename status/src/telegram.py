@@ -22,7 +22,6 @@ class Telegram:
 		
 	def deleteMessage(self, message_id) -> None:
 		try:
-			print(telepot.message_identifier(message_id))
 			self.bot.deleteMessage(telepot.message_identifier(message_id))
 		except Exception as e:
 			pass
