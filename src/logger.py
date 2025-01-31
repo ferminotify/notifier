@@ -69,7 +69,7 @@ class Logger:
             self.file_handler.flush()
 
     def error(self, message):
-        logDB("err", message)
+        logDB("error", message)
         self.logger.error(message)
         if self.file_handler:
             self.file_handler.flush()
@@ -145,7 +145,7 @@ def clearDBLog():
     DB.connection.commit()
     if response[0][1] == "success":
         DB.cursor.execute(f"""
-            DELETE FROM logs_notifier WHERE type != 'success' AND type != 'err'
+            DELETE FROM logs_notifier WHERE type != 'success' AND type != 'error'
         """)
         DB.connection.commit()
     DB.close_connection()
