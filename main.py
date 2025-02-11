@@ -23,6 +23,7 @@ def main():
 		time_start = datetime.now(pytz.timezone("Europe/Rome"))
 
 		errors = 0
+		notifications = 0
 
 		logger.info("Start")
 
@@ -118,26 +119,31 @@ def main():
 						# Send the notification for today (usually empty - rare case new event added right now and not yet sent as last min) and tomorrow
 						send_notification(sub, [_events_today, _events_tomorrow], "Daily Notification")
 						logger.info(f"[>] Sent Daily Notification ({len(_events_today) + len(_events_tomorrow)}) to {sub['email']}.")
+						notifications += 1
 					else:
 						if _events_today:
 							# Send the notification for today
 							send_notification(sub, [_events_today], "Daily Notification")
 							logger.info(f"[>] Sent Daily Notification ({len(_events_today)}) to {sub['email']}.")
+							notifications += 1
 				else: # Last Minute Notification
 					if sub["notification_day_before"]: # if user wants the Daily Notification the day before send today notifications as Last Minute
 						# if it's after the Daily Notification time send Last Minute Notification
 						if datetime.now(pytz.timezone("Europe/Rome")).time() > daily_notification_datetime_end.time():
 							send_notification(sub, [_events_today, _events_tomorrow], "Last Minute Notification")
 							logger.info(f"[>] Sent Last Minute Notification ({len(_events_today) + len(_events_tomorrow)}) to {sub['email']}.")
+							notifications += 1
 						else: # if it's before the Daily Notification time send only today notifications as Last Minute (if not already sent)
 							if _events_today:
 								send_notification(sub, [_events_today], "Last Minute Notification")
 								logger.info(f"[>] Sent Last Minute Notification ({len(_events_today)}) to {sub['email']}.")
+								notifications += 1
 					else: # if it's after the Daily Notification time and user doesn't want the Daily Notification the day before send only today notifications as Last Minute
 						if _events_today:
 							if datetime.now(pytz.timezone("Europe/Rome")).time() > daily_notification_datetime_end.time():
 								send_notification(sub, [_events_today], "Last Minute Notification")
 								logger.info(f"[>] Sent Last Minute Notification ({len(_events_today)}) to {sub['email']}.")
+								notifications += 1
 
 			except Exception as e:
 				logger.error(f"[X] Error sending notification to {sub['email']}: {e}")
@@ -145,7 +151,7 @@ def main():
 		
 		time_diff = datetime.now(pytz.timezone("Europe/Rome")) - time_start
 
-		logger.success(f"[5] Notified all events with {errors} errors [{int(time_diff.total_seconds() // 60)}m {int(time_diff.total_seconds() % 60):02d}s].")
+		logger.success(f"[5] Sent {notifications} notifications with {errors} errors [{int(time_diff.total_seconds() // 60)}m {int(time_diff.total_seconds() % 60):02d}s].")
 
 		# 6. Clear DB Logs if last log is success
 		clearDBLog()

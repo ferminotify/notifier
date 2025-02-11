@@ -62,7 +62,7 @@ class Telegram:
             "receiver": telegram_id, 
             "body": "Registrazione effettuata correttamente. \nAbilita la notifica via telegram nella tua dashboard (https://fn.lkev.in/dashboard / https://ferminotify.sirico.dev/dashboard)" 
         })
-        logger.info(f"Welcome message sent to {telegram_id}.")
+        logger.debug(f"Welcome message sent to {telegram_id}.")
 
     def safe_get_updates(self):
         retries = 3
