@@ -88,7 +88,7 @@ class Email:
 		logger.debug(f"HTML email sent to {receiver} with subject: {subject}.")
 
 		self.__update_sender_index()
-		#self.save_mail(data)
+		self.save_mail(data)
 
 		return
 	
@@ -96,7 +96,7 @@ class Email:
 		try:
 			imap_user = self.sender_emails[EMAIL_SENDER_INDEX]
 			imap_password = os.getenv('EMAIL_SERVICE_PASSWORD')
-			imap_server = os.getenv('EMAIL_SERVICE_URL')
+			imap_server = os.getenv('EMAIL_SERVICE_SAVE_URL')
 			
 			# Convert the message to bytes for IMAP appending
 			email_bytes = msg.as_bytes()

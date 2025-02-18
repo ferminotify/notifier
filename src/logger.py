@@ -2,6 +2,7 @@ import logging
 import os
 from dotenv import load_dotenv
 import psycopg2
+from psycopg2 import sql
 import pytz
 from datetime import datetime
 
@@ -103,6 +104,11 @@ class NotifierDB():
         PASSWORD = os.getenv('PASSWORD')
         PORT_ID = os.getenv('PORT_ID')
 
+        if(os.getenv('ENVIROMENT') == "backup"):
+            self.TABLE = "logs_backup_notifier"
+        else:
+            self.TABLE = "logs_notifier"
+
         try:
             self.connection = psycopg2.connect(
                 host=HOSTNAME,
@@ -127,10 +133,10 @@ def logDB(type: str, message: str = None) -> None:
     """
 
     DB = NotifierDB()
-    DB.cursor.execute(f"""
-        INSERT INTO logs_notifier(type, message, timestamp)
+    DB.cursor.execute(sql.SQL("""
+        INSERT INTO {} (type, message, timestamp)
         VALUES (%s, %s, %s)
-    """, (type, message, datetime.now(pytz.timezone('Europe/Rome'))))
+    """).format(sql.Identifier(DB.TABLE)), (type, message, datetime.now(pytz.timezone('Europe/Rome'))))
     DB.connection.commit()
     DB.close_connection()
     return
@@ -138,9 +144,8 @@ def logDB(type: str, message: str = None) -> None:
 def clearDBLog():
     # if last log is success then clear all logs except success or error
     DB = NotifierDB()
-    DB.cursor.execute(f"""
-        SELECT * FROM logs_notifier ORDER BY timestamp DESC LIMIT 1
-    """)
+    DB.cursor.execute(sql.SQL("SELECT * FROM {} ORDER BY timestamp DESC LIMIT 1").format(
+    sql.Identifier(DB.TABLE)))
     response = DB.cursor.fetchall()
     DB.connection.commit()
     if response[0][1] == "success":
