@@ -88,7 +88,7 @@ class Email:
 		logger.debug(f"HTML email sent to {receiver} with subject: {subject}.")
 
 		self.__update_sender_index()
-		self.save_mail(data)
+		#self.save_mail(data)
 
 		return
 	
@@ -216,8 +216,8 @@ def get_email_body(sub: dict, events_today: list, events_tomorrow: list, type: s
 
 def unsub() -> int:
     try:
-        imap = imaplib.IMAP4_SSL(os.getenv('EMAIL_SERVICE_URL'))
-        imap.login("unsubscribe@fn.lkev.in", os.getenv('EMAIL_UNSUB_PASSWORD'))
+        imap = imaplib.IMAP4_SSL(os.getenv('EMAIL_SERVICE_UNSUB_URL'))
+        imap.login("unsubscribe@fn.lkev.in", os.getenv('EMAIL_SERVICE_UNSUB_PASSWORD'))
         imap.select('INBOX')
 
         # Search for unsubscribe messages
