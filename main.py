@@ -151,7 +151,10 @@ def main():
 		
 		time_diff = datetime.now(pytz.timezone("Europe/Rome")) - time_start
 
-		logger.success(f"[5] Sent {notifications} notifications with {errors} errors [{int(time_diff.total_seconds() // 60)}m {int(time_diff.total_seconds() % 60):02d}s].")
+		if errors > 0:
+			logger.error(f"[5] Sent {notifications} notifications with {errors} errors [{int(time_diff.total_seconds() // 60)}m {int(time_diff.total_seconds() % 60):02d}s].")
+		else:
+			logger.success(f"[5] Sent {notifications} notifications with {errors} errors [{int(time_diff.total_seconds() // 60)}m {int(time_diff.total_seconds() % 60):02d}s].")
 
 		# 6. Clear DB Logs if last log is success
 		clearDBLog()

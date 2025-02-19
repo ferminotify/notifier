@@ -149,9 +149,8 @@ def clearDBLog():
     response = DB.cursor.fetchall()
     DB.connection.commit()
     if response[0][1] == "success":
-        DB.cursor.execute(f"""
-            DELETE FROM logs_notifier WHERE type != 'success' AND type != 'error'
-        """)
+        DB.cursor.execute(sql.SQL("DELETE FROM {} WHERE type != 'success' AND type != 'error'").format(
+        sql.Identifier(DB.TABLE)))
         DB.connection.commit()
     DB.close_connection()
     return

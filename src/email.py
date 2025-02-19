@@ -16,31 +16,52 @@ env = Environment(loader=FileSystemLoader('src/email_templates'))
 from src.logger import Logger
 logger = Logger()
 ###############################################
-#											 #
-#											 #
-#			   GENERAL PURPOSE			   #
-#											 #
-#											 #
+#											  #
+#											  #
+#			   GENERAL PURPOSE			      #
+#											  #
+#											  #
 ###############################################
+
+'''
+IF user is on domain @fermimn.edu.it then send with self hosted
+ELSE 1. Mailgun if error 2. Azure
+'''
 
 EMAIL_SENDER_INDEX = 0
 class Email:
 
 	sender_emails = [
 		"master@fn.lkev.in",
+		"donotreply@fn.lkev.in"
 	]
-
-	def __init__(self):
+	
+	def __init__(self, domain: str = None):
 		global EMAIL_SENDER_INDEX
+		EMAIL_SENDER_INDEX = 0
+		EMAIL_SERVICE_USERNAME = self.sender_emails[EMAIL_SENDER_INDEX]
 		load_dotenv()
-		EMAIL_SERVICE_PASSWORD = os.getenv('EMAIL_SERVICE_PASSWORD')
-		EMAIL_SERVICE_PORT = os.getenv('EMAIL_SERVICE_PORT')
-		EMAIL_SERVICE_URL = os.getenv('EMAIL_SERVICE_URL')
+		if domain == "fermimn.edu.it":
+			# Self hosted
+			EMAIL_SERVICE_PASSWORD = os.getenv('EMAIL_SERVICE_PASSWORD')
+			EMAIL_SERVICE_PORT = os.getenv('EMAIL_SERVICE_PORT')
+			EMAIL_SERVICE_URL = os.getenv('EMAIL_SERVICE_URL')
+		elif domain == None:
+			# Azure
+			EMAIL_SERVICE_PASSWORD = os.getenv('EMAIL_SERVICE_AZURE_PASSWORD')
+			EMAIL_SERVICE_PORT = os.getenv('EMAIL_SERVICE_PORT')
+			EMAIL_SERVICE_URL = os.getenv('EMAIL_SERVICE_AZURE_URL')
+			EMAIL_SERVICE_USERNAME = os.getenv('EMAIL_SERVICE_AZURE_USERNAME')
+			EMAIL_SENDER_INDEX = 1
+		else:
+			# Mailgun
+			EMAIL_SERVICE_PASSWORD = os.getenv('EMAIL_SERVICE_PASSWORD')
+			EMAIL_SERVICE_PORT = os.getenv('EMAIL_SERVICE_PORT')
+			EMAIL_SERVICE_URL = os.getenv('EMAIL_SERVICE_MAILGUN_URL')
 		self.client = smtplib.SMTP(EMAIL_SERVICE_URL, EMAIL_SERVICE_PORT)
 		self.client.starttls()
-		self.client.login(self.sender_emails[EMAIL_SENDER_INDEX], EMAIL_SERVICE_PASSWORD)
+		self.client.login(EMAIL_SERVICE_USERNAME, EMAIL_SERVICE_PASSWORD)
 		logger.debug("SMTP client initialized and started TLS.")
-
 		return
 
 	def __update_sender_index(self) -> None:
@@ -126,13 +147,29 @@ class Email:
 		return
 
 def send_email(email: dict) -> None:
-	EM = Email()
+	# if receiver email is under fermimn.edu.it then send with self hosted
+	EM = Email(email["Receiver"].split("@")[1])
 	logger.debug(f"Sending email to {email['Receiver']} with subject: {email['Subject']}.")
-
-	EM.sendHTMLMail(
-		email["Receiver"], email["Subject"],
-		email["Raw"], email["Body"]
-	)
+	try:
+		EM.sendHTMLMail(
+			email["Receiver"], email["Subject"],
+			email["Raw"], email["Body"]
+		)
+	except Exception as e:
+		logger.error(f"Error sending email to {email['Receiver']} ({e}). Retrying with Azure.")
+		try:
+			EM = Email() # Use Azure
+			EM.sendHTMLMail(
+				email["Receiver"], email["Subject"],
+				email["Raw"], email["Body"]
+			)
+		except Exception as e:
+			logger.info(f"Error sending email to {email['Receiver']} ({e}). Retrying with Self-hosted.")
+			EM = Email("fermimn.edu.it") # Use self hosted
+			EM.sendHTMLMail(
+				email["Receiver"], email["Subject"],
+				email["Raw"], email["Body"]
+			)
 	EM.closeConnection()
 
 	return 
