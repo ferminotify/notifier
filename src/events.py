@@ -21,7 +21,7 @@ def get_events() -> list[dict]:
 	Returns:
 		list: list of dictionaries containing all the events.
 	"""
-	URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSn-iVUb73XGXN7qWU0S2njYO8yl8LFv0V-1a3VTU7mPB6rJUqYasGPJcmWyc1wGvjDd7IWH3qci75l/pub?gid=0&single=true&output=csv"
+	URL = "https://docs.google.com/spreadsheets/d/1ADaUVRQeYU078-suUxGk0u1aMj_GbcjsAzG11YlMp5g/gviz/tq?tqx=out:csv"
 
 	data = []
 	try:
