@@ -50,7 +50,7 @@ def filter_events_kw(events, keywords):
 	pattern = "|".join([re.escape(keyword) for keyword in keywords])
 
 	for event in events:
-		if re.search(pattern, event["summary"]):
+		if re.search(pattern, event["summary"], re.IGNORECASE):
 			filtered_events.append(event)
 		
 	return filtered_events
