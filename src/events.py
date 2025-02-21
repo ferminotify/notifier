@@ -46,13 +46,11 @@ def filter_events_kw(events, keywords):
 
 	if not keywords:
 		return filtered_events
+	
+	pattern = "|".join([re.escape(keyword) for keyword in keywords])
 
-	for keyword in keywords:
-
-		keyword = re.escape(keyword)
-		filtered_events = [
-			event for event in events
-			if re.search(r"\b" + keyword + r"\b", event.get("summary", ""), re.IGNORECASE)
-		]
+	for event in events:
+		if re.search(pattern, event["summary"]):
+			filtered_events.append(event)
 		
 	return filtered_events
