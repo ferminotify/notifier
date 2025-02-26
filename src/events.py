@@ -47,10 +47,20 @@ def filter_events_kw(events, keywords):
 	if not keywords:
 		return filtered_events
 	
-	pattern = "|".join([re.escape(keyword) for keyword in keywords])
+	for evt in events:
+		event_title = ""
+		try:
+			event_title = "".join(c for c in evt["summary"].lower()
+				if ((c.isalpha() or c.isdecimal()) or c == ' ')) + " "
+		except Exception as e:
+			logger.error(f"Error processing event title: {e}")
 
-	for event in events:
-		if re.search(pattern, event["summary"], re.IGNORECASE):
-			filtered_events.append(event)
+		kw_in_subject = any(((kw.lower() + " ") in event_title
+							for kw in keywords))
+		# I append a space to the keyword so, for example, the user 
+		# with the tag 4E doesn't receive the information about the 
+		# events of 4EAU
+		if kw_in_subject:
+			filtered_events.append(evt)
 		
 	return filtered_events
