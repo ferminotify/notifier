@@ -36,11 +36,13 @@ def main():
 		logger.info("[2] Registered new telegram users.")
 
 		# 3. Check if any user has unsubscribed
+		'''
 		try:
 			logger.info(f"[3] Unsubscribed {unsub()} users.")
 		except Exception as e:
 			logger.error(f"[X] Error while checking for unsubscribed users: {e}")
 			errors += 1
+		'''
 
 		# 4. Get all the events
 		events = get_events() # sample ==> events
