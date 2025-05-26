@@ -50,12 +50,14 @@ def filter_events_kw(events, keywords):
 	for evt in events:
 		event_title = ""
 		try:
-			event_title = "".join(c for c in evt["summary"].lower()
-				if ((c.isalpha() or c.isdecimal()) or c == ' ')) + " "
+			# remove non alphanumeric characters from the event title
+			# and replace them with a space
+			event_title = re.sub(r'[^a-zA-Z0-9]', ' ', evt["summary"])
+			event_title = re.sub(r'\s+', ' ', event_title).strip()
 		except Exception as e:
 			logger.error(f"Error processing event title: {e}")
 
-		kw_in_subject = any(((kw.lower() + " ") in event_title
+		kw_in_subject = any(((kw.lower() + " ") in event_title.lower()
 							for kw in keywords))
 		# I append a space to the keyword so, for example, the user 
 		# with the tag 4E doesn't receive the information about the 
