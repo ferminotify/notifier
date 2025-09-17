@@ -9,6 +9,8 @@ logger = Logger()
 Summary of all the operations involving the database.
 """
 
+ssl_cert_path = 'cert.pem'
+
 class NotifierDB():
 	"""This class is used to connect to the database and perform
 	operations on it regarding telegram and emails.
@@ -40,7 +42,9 @@ class NotifierDB():
 				dbname=DATABASE,
 				user=USERNAME,
 				password=PASSWORD,
-				port=PORT_ID
+				port=PORT_ID,
+				#sslmode='verify-full',
+        			#sslrootcert=ssl_cert_path
 			)
 			logger.debug("Database connection established.")
 		except Exception as e:
