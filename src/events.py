@@ -57,11 +57,10 @@ def filter_events_kw(events, keywords):
 		except Exception as e:
 			logger.error(f"Error processing event title: {e}")
 
-		kw_in_subject = any(((kw.lower() + " ") in event_title.lower()
-							for kw in keywords))
-		# I append a space to the keyword so, for example, the user 
-		# with the tag 4E doesn't receive the information about the 
-		# events of 4EAU
+		kw_in_subject = any(
+			re.search(r'\b' + re.escape(kw.lower()) + r'\b', event_title.lower()) 
+			for kw in keywords
+		)
 		if kw_in_subject:
 			filtered_events.append(evt)
 		
