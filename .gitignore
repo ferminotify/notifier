@@ -5,6 +5,7 @@ notes.txt
 samples.txt
 
 __pycache__/
+venv
 
 cert.crt
 cert.pem

@@ -4,6 +4,8 @@ import telepot
 from urllib3.exceptions import ReadTimeoutError
 from time import sleep
 from datetime import datetime, timedelta
+import random
+import string
 
 from src.db import get_tg_offset, update_tg_offset, update_telegram_id
 
@@ -60,7 +62,7 @@ class Telegram:
         """
         self.chat_notification(message = {
             "receiver": telegram_id, 
-            "body": "Registrazione effettuata correttamente. \nAbilita la notifica via telegram nella tua dashboard (https://fn.lkev.in/dashboard / https://ferminotify.sirico.dev/dashboard)" 
+            "body": "Registrazione effettuata correttamente. \nAbilita la notifica via telegram nella tua dashboard (https://fn.lkev.in/dashboard)" 
         })
         logger.debug(f"Welcome message sent to {telegram_id}.")
 
@@ -113,13 +115,31 @@ class Telegram:
                                 user_email = sub["email"]
                                 telegram_id = message["message"]["from"]["id"]
 
-                                update_tg_offset(message["update_id"])
+                                # check if telegram is already registered to another user
+                                for s in subs:
+                                    if s["telegram"] != None and str(s["telegram"]) == str(telegram_id):
+                                        # tg account connected to another fn user
+                                        update_telegram_id(s["email"], generate_temporary_telegram_code(subs))
+                                        logger.info(f"Telegram ID {s['telegram']} was already connected to {s['email']}. Disconnecting...")
+                                        break
+
+                                update_tg_offset(message["update_id"]) # i have no idea what this does
                                 update_telegram_id(user_email, telegram_id)
                                 self.user_welcome(telegram_id)
                                 logger.info(f"User {user_email} registered with telegram ID {telegram_id}.")
                     except Exception as e:
                         logger.error(f"Error processing message: {e}")
                         logger.error(f"Message causing error: {message}")
+
+def generate_temporary_telegram_code(subs) -> str:
+    code = "X"
+    for _ in range(6):
+        code += random.choice(string.ascii_lowercase)
+    # check if code is already used in subs
+    for sub in subs:
+        if sub["telegram"] == code:
+            return generate_temporary_telegram_code(subs)
+    return code
                         
 ###############################################
 #                                             #
