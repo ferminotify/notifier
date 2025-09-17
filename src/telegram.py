@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import random
 import string
 
-from src.db import get_tg_offset, update_tg_offset, update_telegram_id
+from src.db import get_tg_offset, update_tg_offset, update_telegram_id, set_pref_telegram
 
 from src.logger import Logger
 logger = Logger()
@@ -125,6 +125,7 @@ class Telegram:
 
                                 update_tg_offset(message["update_id"]) # i have no idea what this does
                                 update_telegram_id(user_email, telegram_id)
+                                set_pref_telegram(user_email)
                                 self.user_welcome(telegram_id)
                                 logger.info(f"User {user_email} registered with telegram ID {telegram_id}.")
                     except Exception as e:

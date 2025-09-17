@@ -174,6 +174,23 @@ class NotifierDB():
 		logger.debug(f"Updated telegram offset to {last_update_id}.")
 		
 		return
+	
+	def set_pref_telegram(self, user_email: str) -> None:
+		"""Set the notification preference of a user to telegram true.
+
+		Args:
+			user_email (str): email of the user.
+		"""
+		self.cursor.execute(f"""
+			UPDATE subscribers
+				SET notification_preferences = 3
+			WHERE email = '{user_email}';
+		""")
+		self.connection.commit()
+		logger.debug(f"Set notification preference to telegram true (3) for user with email {user_email}.")
+		
+		return
+
 
 def store_sent_event(user_id: int, event_id: str) -> None:
 	"""Store sent notifications in the database.
@@ -286,6 +303,14 @@ def get_tg_offset() -> str:
 		return
 	else:
 		return offset
+	
+def set_pref_telegram(user_email: str) -> None:
+	DB = NotifierDB()
+	DB.set_pref_telegram(user_email)
+	DB.close_connection()
+	logger.debug(f"Set notification preference to telegram true (3) for user with email {user_email}.")
+	
+	return
 
 def unsub_user(email: str, user_id: str, unsub_token: str) -> None:
 	'''
