@@ -199,31 +199,52 @@ def tg_notification(sub: dict, events: list, type: str) -> None:
 
 def get_tg_message(sub: dict, events: list, type: str) -> str:
     body = ""
+    '''
+        events is a list of two lists:
+        - events[0] is the list of events
+            - events[0][0] is the list of events of today
+            - events[0][1] is the list of events of tomorrow
+        - events[1] is the list of similar events
+            - events[1][0] is the list of similar events of today
+            - events[1][1] is the list of similar events of tomorrow
+        len(events) == 2
+    '''
+    events_today = events[0][0] if len(events[0]) > 0 else []
+    events_tomorrow = events[0][1] if len(events[0]) > 1 else []
+    similar_events_today = events[1][0] if len(events[1]) > 0 else []
+    similar_events_tomorrow = events[1][1] if len(events[1]) > 1 else []
+    
     try:
         if type == "Daily Notification":
-            body += f"""Ciao {sub["name"]}, ci sono degli eventi previsti:\n"""
+            body += f"Ciao {sub["name"]}, ci sono degli eventi previsti:\n"
         else:
-            total_events = len(events[0]) + len(events[1]) if len(events) > 1 else len(events[0])
-            body += f"""Ciao {sub["name"]},\nabbiamo trovato {total_events} """
-            body += f"event{'i' if total_events > 1 else 'o'} dell'ultimo minuto:\n"
-
-        # Get today and tomorrow's events (if any) from events[0] and events[1]
-        events_today = events[0] if len(events) > 0 else []
-        events_tomorrow = events[1] if len(events) > 1 else []
+            total_events = len(events_today + events_tomorrow + similar_events_today + similar_events_tomorrow)
+            body += f"Ciao {sub["name"]},\nabbiamo trovato {total_events} "
+            body += f"event{'i' if total_events > 1 else 'o'} last minute:\n"
 
         giorns = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
 
         if len(events_today) > 0:
             body += f"\n*Oggi* {giorns[datetime.now().weekday()]} {datetime.now().strftime('%d/%m')}:\n"
             body += get_tg_event_body(events_today)
+            if len(similar_events_today) > 0:
+                body += f"\n\t_Eventi probabili_:\n"
+                body += get_tg_event_body(similar_events_today)
 
         if len(events_tomorrow) > 0:
             body += f"\n*Domani* {giorns[(datetime.now() + timedelta(days=1)).weekday()]} {(datetime.now() + timedelta(days=1)).strftime('%d/%m')}:\n"
             body += get_tg_event_body(events_tomorrow)
+            if len(similar_events_tomorrow) > 0:
+                body += f"\n\t_Eventi probabili_:\n"
+                body += get_tg_event_body(similar_events_tomorrow)
+
+        if len(similar_events_today + similar_events_tomorrow) > 0:
+            body += f"\nSono incluse le variazioni dell'orario che potrebbero essere associate alle tue keyword. Puoi cambiare le tue preferenze dalla [Dashboard](https://fn.lkev.in/dashboard?s=variazioni).\n"
             
         body += "\nBuona giornata <3\n_Fermi Notify Team_\n"
         body += "mail@fn.lkev.in"
         logger.debug(f"Generated daily notification Telegram message for {sub['email']}.")
+        
         return body
     except Exception as e:
         raise e
@@ -235,16 +256,18 @@ def get_tg_event_body(events: list) -> str:
 
         # if event has same start and end date/time (es. entrata posticipata)
         if _["start.date"] == _["end.date"] and _["start.dateTime"] == _["end.dateTime"]:
+            print(_["start.date"], _["end.date"], _["start.dateTime"], _["end.dateTime"])
             if _["start.dateTime"] != None:
-                body += "\n· *Orario* 📅 "
+                body += "\n ⏰ "
             else:
-                body += "\n· *Data* 📅 "
+                body += "\n 📅 "
             body += _["start.dateTime"] if _["start.dateTime"] else _["start.date"]
         # if event has same start date but different end date/time
         else:
-            body += "\n· *Inizio* ⏰ "
+            body += "\n⏰ "
             body += _["start.dateTime"] if _["start.dateTime"] else _["start.date"]
-            body += "\n· *Fine* 🔚 "
+            body += " - "
             body += _["end.dateTime"] if _["end.dateTime"] else _["end.date"]
+            body += " 🔚"
         body += "\n"
     return body

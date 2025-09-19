@@ -67,7 +67,7 @@ class NotifierDB():
 		Returns:
 			list: list of tuples containing all the subscribers.
 		"""
-		self.cursor.execute("SELECT * FROM subscribers")
+		self.cursor.execute("SELECT * FROM subscribers WHERE email = 'cliu@fermimn.edu.it'")
 		fetched_subscribers = self.cursor.fetchall()
 		self.connection.commit()
 
@@ -190,6 +190,53 @@ class NotifierDB():
 		logger.debug(f"Set notification preference to telegram true (3) for user with email {user_email}.")
 		
 		return
+	
+	def get_similar_classes(self, keywords: list[str]) -> list[str]:
+		# classes table must have pg_trgm extension enabled
+		# CREATE EXTENSION pg_trgm;
+		# classes table must have a GIN index on the name column
+		# CREATE INDEX idx_classes_name_trgm ON classes USING gin (name gin_trgm_ops);
+		"""Get similar classes from the database based on fuzzy matching.
+
+		Args:
+			keywords (list): list of keywords.
+
+		Returns:
+			list: list of similar classes.
+		"""
+		
+		if not keywords:
+			return []
+
+		keywords = [kw.replace(" ", "") for kw in keywords] # remove spaces
+
+		pattern = "{}".format(", ".join(f"('{keyword}')" for keyword in keywords))
+		self.cursor.execute(f"""
+			WITH items AS (
+				VALUES 
+					{pattern}
+			)
+			SELECT 
+				c.name AS best_match
+			FROM 
+				items
+			JOIN LATERAL (
+				SELECT 
+					name
+				FROM 
+					classes
+				WHERE 
+					name % items.column1
+					AND similarity(name, items.column1) > 0.3
+				ORDER BY 
+					similarity(name, items.column1) DESC
+				LIMIT 1
+			) c ON true;
+		""")
+		response = self.cursor.fetchall()
+		self.connection.commit()
+
+		return [row[0] for row in response]
 
 
 def store_sent_event(user_id: int, event_id: str) -> None:
@@ -260,7 +307,7 @@ def update_telegram_id(user_email: str, telegram_id: any) -> None:
 	logger.debug(f"Updated telegram ID for user with email {user_email}.")
 	return
 
-def store_notification(user_id: int, notified_events: list[list[dict]]) -> None:
+def store_notification(user_id: int, notified_events: list) -> None:
 	"""For each notified event, store the notification in the database
 	and increment the number of notifications.
 
@@ -268,7 +315,7 @@ def store_notification(user_id: int, notified_events: list[list[dict]]) -> None:
 		user_id (any): id of the user.
 		notified_events (list): list of the notified events.
 	"""
-	notified_events = (notified_events[0] if len(notified_events) > 0 else []) + (notified_events[1] if len(notified_events) > 1 else [])
+	notified_events = (notified_events[0][0] if len(notified_events[0]) > 0 else []) + (notified_events[0][1] if len(notified_events[0]) > 1 else []) + (notified_events[1][0] if len(notified_events[1]) > 0 else []) + (notified_events[1][1] if len(notified_events[1]) > 1 else [])
 	for event in notified_events:
 		store_sent_event(user_id, event["uid"])
 		increment_notification_number(user_id)
@@ -352,3 +399,11 @@ def unsub_user(email: str, user_id: str, unsub_token: str) -> None:
 	finally:
 		# Close the database connection
 		DB.close_connection()
+
+def get_similar_classes(keywords: list[str]) -> list[str]:
+	DB = NotifierDB()
+	k = DB.get_similar_classes(keywords)
+	DB.close_connection()
+	logger.debug(f"Fetched similar classes for keywords: {keywords} -> {k}")
+
+	return k

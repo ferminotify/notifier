@@ -1,6 +1,6 @@
-from src.db import get_subscribers, get_all_sent_id
+from src.db import get_subscribers, get_all_sent_id, get_similar_classes
 from src.telegram import register_new_telegram_user
-from src.events import get_events, filter_events_kw
+from src.events import get_events, filter_events_kw, remove_sent_events
 from datetime import datetime, timedelta
 from src.notifications import send_notification
 from src.email import unsub
@@ -83,6 +83,7 @@ def main():
 				event['start.dateTime'] = datetime.strptime(event['start.dateTime'], '%Y-%m-%dT%H:%M:%S%z').strftime('%H:%M')
 			if event.get('end.dateTime'):
 				event['end.dateTime'] = datetime.strptime(event['end.dateTime'], '%Y-%m-%dT%H:%M:%S%z').strftime('%H:%M')
+			# not covered case: multi-day event with start.dateTime and end.dateTime in different days
 		
 		logger.info(f"[4] Got {len(events_today)} events of today and {len(events_tomorrow)} of tomorrow.")	
 
@@ -95,18 +96,32 @@ def main():
 				logger.debug(f"No notification preference set for {sub['email']}.")
 				continue
 
-			# 5.1. Filter all events that don't match the user's keywords
+			# 5.1.0 If user has include_similar_tags enabled add similar tags to the user's keywords
+			_similar_events_today = _similar_events_tomorrow = []
+			if sub["include_similar_tags"] == True:
+				similar_tags = get_similar_classes(sub["tags"])
+				similar_tags = [tag for tag in similar_tags if tag not in sub["tags"]] # remove duplicates
+				logger.debug(f"Similar tags for {sub['email']}: {similar_tags}")
+				_similar_events_today = filter_events_kw(events_today, similar_tags)
+				_similar_events_tomorrow = filter_events_kw(events_tomorrow, similar_tags)
+
+			# 5.1.1 Filter all events that don't match the user's keywords
 			_events_today = filter_events_kw(events_today, sub["tags"])
 			_events_tomorrow = filter_events_kw(events_tomorrow, sub["tags"])
-			if not _events_today and not _events_tomorrow:
+			if not (_events_today or _events_tomorrow or _similar_events_today or _similar_events_tomorrow):
 				continue
+			# remove duplicates between _events and _similar_events
+			_similar_events_today = [event for event in _similar_events_today if event not in _events_today]
+			_similar_events_tomorrow = [event for event in _similar_events_tomorrow if event not in _events_tomorrow]
 
 			# 5.2. Get the events that the user has already been notified 
 			sent = get_all_sent_id(sub["id"])
 			# filter all events that have not been notified yet
-			_events_today = [event for event in _events_today if event["uid"] not in sent]
-			_events_tomorrow = [event for event in _events_tomorrow if event["uid"] not in sent]
-			if not _events_today and not _events_tomorrow:
+			_events_today = remove_sent_events(_events_today, sent)
+			_events_tomorrow = remove_sent_events(_events_tomorrow, sent)
+			_similar_events_today = remove_sent_events(_similar_events_today, sent)
+			_similar_events_tomorrow = remove_sent_events(_similar_events_tomorrow, sent)
+			if not (_events_today or _events_tomorrow or _similar_events_today or _similar_events_tomorrow):
 				continue
 
 			# 5.3. Send the notifications
@@ -116,34 +131,34 @@ def main():
 			daily_notification_datetime_end = datetime.combine(datetime.now(pytz.timezone("Europe/Rome")).date(), sub["notification_time"]) + timedelta(minutes=15)
 
 			try:
-				if sub["notification_time"] <= datetime.now(pytz.timezone("Europe/Rome")).time() <= daily_notification_datetime_end.time():
+				if sub["notification_time"] <= datetime.now(pytz.timezone("Europe/Rome")).time() <= daily_notification_datetime_end.time(): # Daily Notification
 					if sub["notification_day_before"]:
 						# Send the notification for today (usually empty - rare case new event added right now and not yet sent as last min) and tomorrow
-						send_notification(sub, [_events_today, _events_tomorrow], "Daily Notification")
+						send_notification(sub, [[_events_today, _events_tomorrow], [_similar_events_today, _similar_events_tomorrow]], "Daily Notification")
 						logger.info(f"[>] Sent Daily Notification ({len(_events_today) + len(_events_tomorrow)}) to {sub['email']}.")
 						notifications += 1
 					else:
-						if _events_today:
+						if _events_today or _similar_events_today:
 							# Send the notification for today
-							send_notification(sub, [_events_today], "Daily Notification")
+							send_notification(sub, [[_events_today], [_similar_events_today]], "Daily Notification")
 							logger.info(f"[>] Sent Daily Notification ({len(_events_today)}) to {sub['email']}.")
 							notifications += 1
 				else: # Last Minute Notification
 					if sub["notification_day_before"]: # if user wants the Daily Notification the day before send today notifications as Last Minute
 						# if it's after the Daily Notification time send Last Minute Notification
 						if datetime.now(pytz.timezone("Europe/Rome")).time() > daily_notification_datetime_end.time():
-							send_notification(sub, [_events_today, _events_tomorrow], "Last Minute Notification")
+							send_notification(sub, [[_events_today, _events_tomorrow], [_similar_events_today, _similar_events_tomorrow]], "Last Minute Notification")
 							logger.info(f"[>] Sent Last Minute Notification ({len(_events_today) + len(_events_tomorrow)}) to {sub['email']}.")
 							notifications += 1
 						else: # if it's before the Daily Notification time send only today notifications as Last Minute (if not already sent)
-							if _events_today:
-								send_notification(sub, [_events_today], "Last Minute Notification")
+							if _events_today or _similar_events_today:
+								send_notification(sub, [[_events_today], [_similar_events_today]], "Last Minute Notification")
 								logger.info(f"[>] Sent Last Minute Notification ({len(_events_today)}) to {sub['email']}.")
 								notifications += 1
 					else: # if it's after the Daily Notification time and user doesn't want the Daily Notification the day before send only today notifications as Last Minute
-						if _events_today:
+						if _events_today or _similar_events_today:
 							if datetime.now(pytz.timezone("Europe/Rome")).time() > daily_notification_datetime_end.time():
-								send_notification(sub, [_events_today], "Last Minute Notification")
+								send_notification(sub, [[_events_today], [_similar_events_today]], "Last Minute Notification")
 								logger.info(f"[>] Sent Last Minute Notification ({len(_events_today)}) to {sub['email']}.")
 								notifications += 1
 

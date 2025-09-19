@@ -65,3 +65,6 @@ def filter_events_kw(events, keywords):
 			filtered_events.append(evt)
 		
 	return filtered_events
+
+def remove_sent_events(events, sent):
+	return [event for event in events if event["uid"] not in sent]

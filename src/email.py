@@ -198,17 +198,21 @@ def email_notification(sub: dict, events: list, type: str) -> None:
 	'''
 	logger.debug(f"Sending {type} email to {sub['email']}.")
 	# Prepare the email
-	# events are [0] today and [1] tomorrow
-	events_today = events[0] if len(events) > 0 else []
-	events_tomorrow = events[1] if len(events) > 1 else []
+	# events 	[0][0] = events today, events [0][1] = events tomorrow
+	# 			[1][0] = similar events today, events [1][1] = similar events tomorrow
+	events_today = events[0][0] if len(events[0]) > 0 else []
+	events_tomorrow = events[0][1] if len(events[0]) > 1 else []
+	similar_events_today = events[1][0] if len(events[1]) > 0 else []
+	similar_events_tomorrow = events[1][1] if len(events[1]) > 1 else []
+	total_events = len(events_today + events_tomorrow + similar_events_today + similar_events_tomorrow)
 	email = {
 		"Receiver": sub["email"],
-		"Raw": f"{type}:\n{len(events_today + events_tomorrow)} event{'i' if len(events_today + events_tomorrow) > 1 else 'o'}",
+		"Raw": f"{type}:\n{total_events} event{'i' if total_events > 1 else 'o'}",
 		"List-Unsubscribe": f"<mailto:unsubscribe@fn.lkev.in?subject=Unsubscribe%20%3A%28&id={sub['id']}&token={sub['unsub_token']}&email={sub['email']}>, <https://fn.lkev.in/user/unsubscribe?id={sub['id']}&token={sub['unsub_token']}&email={sub['email']}>",
 	}
-	email["Subject"] = f"{type} ({len(events_today + events_tomorrow)} event{'i' if len(events_today + events_tomorrow) > 1 else 'o'})" if type == 'Daily Notification' else type
+	email["Subject"] = f"{type} ({total_events} event{'i' if total_events > 1 else 'o'})" if type == 'Daily Notification' else type
 	try:
-		email["Body"] = get_email_body(sub, events_today, events_tomorrow, type)
+		email["Body"] = get_email_body(sub, events_today, events_tomorrow, similar_events_today, similar_events_tomorrow, type)
 	except Exception as e:
 		raise e
 	logger.debug(f"Generated notification mail body for {sub['email']}.")
@@ -223,13 +227,14 @@ def email_notification(sub: dict, events: list, type: str) -> None:
 #											  #
 #											  #
 ###############################################
-def get_email_body(sub: dict, events_today: list, events_tomorrow: list, type: str) -> str:
+def get_email_body(sub: dict, events_today: list, events_tomorrow: list, similar_events_today: list, similar_events_tomorrow: list, type: str) -> str:
 	'''
 	Get the HTML body of the email.
 	'''
 	try:
 
 		giorns = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+		total_events = len(events_today + events_tomorrow + similar_events_today + similar_events_tomorrow)
 
 		# data to render
 		data = {
@@ -237,14 +242,16 @@ def get_email_body(sub: dict, events_today: list, events_tomorrow: list, type: s
 			'greetings': "Ciao" if not type == "Daily Notification" else "Buongiorno" if datetime.now().hour < 12 else "Buon pomeriggio" if datetime.now().hour < 18 else "Buonasera",
 			'name': sub["name"],
 			'gender': 'o' if sub["gender"] == "M" else 'a' if sub["gender"] == "F" else 'ǝ',
-			'n_events': f"Sono previsti <b>{len(events_today) + len(events_tomorrow)} eventi</b>" if len(events_today) + len(events_tomorrow) > 1 else f"È previsto <b>{len(events_today) + len(events_tomorrow)} evento</b>" if type == "Daily Notification" else f"Abbiamo trovato <b>{len(events_today) + len(events_tomorrow)} nuovi eventi</b>" if len(events_today) + len(events_tomorrow) > 1 else f"Abbiamo trovato <b>{len(events_today) + len(events_tomorrow)} nuovo evento</b>",
+			'n_events': f"Sono previsti <b>{total_events} eventi</b>" if total_events > 1 else f"È previsto <b>{total_events} evento</b>" if type == "Daily Notification" else f"Abbiamo trovato <b>{total_events} nuovi eventi</b>" if total_events > 1 else f"Abbiamo trovato <b>{total_events} nuovo evento</b>",
 			'events_today': events_today,
 			'events_tomorrow': events_tomorrow,
+			'similar_events_today': similar_events_today,
+			'similar_events_tomorrow': similar_events_tomorrow,
 			'date_today': f"{giorns[datetime.now().weekday()]} {datetime.now().strftime('%d/%m')}",
 			'date_tomorrow': f"{giorns[(datetime.now() + timedelta(days=1)).weekday()]} {(datetime.now() + timedelta(days=1)).strftime('%d/%m')}",
 		}
 		
-		template = env.get_template('mail_notification.min.html')
+		template = env.get_template('mail_notification.html')
 		body = template.render(data)
 
 		return body
