@@ -67,7 +67,7 @@ class NotifierDB():
 		Returns:
 			list: list of tuples containing all the subscribers.
 		"""
-		self.cursor.execute("SELECT * FROM subscribers WHERE email = 'cliu@fermimn.edu.it'")
+		self.cursor.execute("SELECT * FROM subscribers")
 		fetched_subscribers = self.cursor.fetchall()
 		self.connection.commit()
 
