@@ -227,16 +227,16 @@ def get_tg_message(sub: dict, events: list, type: str) -> str:
         if len(events_today) > 0:
             body += f"\n*Oggi* {giorns[datetime.now().weekday()]} {datetime.now().strftime('%d/%m')}:\n"
             body += get_tg_event_body(events_today)
-            if len(similar_events_today) > 0:
-                body += f"\n\t_Eventi probabili_:\n"
-                body += get_tg_event_body(similar_events_today)
+        if len(similar_events_today) > 0:
+            body += f"\n\t_Eventi probabili_:\n"
+            body += get_tg_event_body(similar_events_today)
 
         if len(events_tomorrow) > 0:
             body += f"\n*Domani* {giorns[(datetime.now() + timedelta(days=1)).weekday()]} {(datetime.now() + timedelta(days=1)).strftime('%d/%m')}:\n"
             body += get_tg_event_body(events_tomorrow)
-            if len(similar_events_tomorrow) > 0:
-                body += f"\n\t_Eventi probabili_:\n"
-                body += get_tg_event_body(similar_events_tomorrow)
+        if len(similar_events_tomorrow) > 0:
+            body += f"\n\t_Eventi probabili_:\n"
+            body += get_tg_event_body(similar_events_tomorrow)
 
         if len(similar_events_today + similar_events_tomorrow) > 0:
             body += f"\nSono incluse le variazioni dell'orario che potrebbero essere associate alle tue keyword. Puoi cambiare le tue preferenze dalla [Dashboard](https://fn.lkev.in/dashboard?s=variazioni).\n"
