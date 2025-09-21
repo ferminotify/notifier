@@ -216,10 +216,10 @@ def get_tg_message(sub: dict, events: list, type: str) -> str:
     
     try:
         if type == "Daily Notification":
-            body += f"Ciao {sub["name"]}, ci sono degli eventi previsti:\n"
+            body += f"Ciao {sub['name']}, ci sono degli eventi previsti:\n"
         else:
             total_events = len(events_today + events_tomorrow + similar_events_today + similar_events_tomorrow)
-            body += f"Ciao {sub["name"]},\nabbiamo trovato {total_events} "
+            body += f"Ciao {sub['name']},\nabbiamo trovato {total_events} "
             body += f"event{'i' if total_events > 1 else 'o'} last minute:\n"
 
         giorns = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
