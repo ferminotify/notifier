@@ -6,8 +6,7 @@ from time import sleep
 from datetime import datetime, timedelta
 import random
 import string
-
-from src.db import get_tg_offset, update_tg_offset, update_telegram_id, set_pref_telegram
+from src.db import NotifierDB
 
 from src.logger import Logger
 logger = Logger()
@@ -30,11 +29,12 @@ class Telegram:
         bot (telepot.Bot): The telegram bot.
     """
 
-    def __init__(self):
+    def __init__(self, DB):
         load_dotenv()
         self.API_KEY = os.getenv('TELEGRAM_API_KEY')
         self.bot = telepot.Bot(self.API_KEY)
         logger.debug("Telegram bot initialized with API key.")
+        self.DB = DB
 
     def chat_notification(self, message: dict) -> None:
         """Sends a notification to the chat through the bot.
@@ -72,7 +72,7 @@ class Telegram:
         for i in range(retries):
             try:
                 logger.debug(f"Attempt {i+1} to get updates.")
-                updates = self.bot.getUpdates(offset=get_tg_offset())
+                updates = self.bot.getUpdates(offset=self.DB.get_tg_offset())
                 logger.debug("Successfully retrieved updates.")
                 return updates
             except ReadTimeoutError:
@@ -99,7 +99,7 @@ class Telegram:
         except Exception as e:
             logger.error(f"Error getting updates: {e}")
             return
-        # inbox_messages = self.bot.getUpdates(offset=get_tg_offset())
+        # inbox_messages = self.bot.getUpdates(offset=self.DB.get_tg_offset())
         for message in inbox_messages:
             for sub in subs:
                 # The next lines I check if I got messages from any
@@ -119,13 +119,13 @@ class Telegram:
                                 for s in subs:
                                     if s["telegram"] != None and str(s["telegram"]) == str(telegram_id):
                                         # tg account connected to another fn user
-                                        update_telegram_id(s["email"], generate_temporary_telegram_code(subs))
+                                        self.DB.update_telegram_id(s["email"], generate_temporary_telegram_code(subs))
                                         logger.info(f"Telegram ID {s['telegram']} was already connected to {s['email']}. Disconnecting...")
                                         break
 
-                                update_tg_offset(message["update_id"]) # i have no idea what this does
-                                update_telegram_id(user_email, telegram_id)
-                                set_pref_telegram(user_email)
+                                self.DB.update_tg_offset(message["update_id"]) # i have no idea what this does
+                                self.DB.update_telegram_id(user_email, telegram_id)
+                                self.DB.set_pref_telegram(user_email)
                                 self.user_welcome(telegram_id)
                                 logger.info(f"User {user_email} registered with telegram ID {telegram_id}.")
                     except Exception as e:
@@ -150,13 +150,13 @@ def generate_temporary_telegram_code(subs) -> str:
 #                                             #
 ###############################################
 
-def register_new_telegram_user(subs: list[dict]) -> None:
+def register_new_telegram_user(subs: list[dict], DB: NotifierDB) -> None:
     """Associates a telegram account to a subscriber of the service.
 
     Args:
         subs (list): A list of dictionaries containing the user's info.
     """
-    TG = Telegram()
+    TG = Telegram(DB)
     TG.register_new_telegram_user(subs)
     logger.debug("New telegram user registration process completed.")
     

@@ -158,6 +158,9 @@ class NotifierDB():
 			if i[0] == "telegram_offset":
 				offset = i[1]
 
+		if offset == '':
+			return
+			
 		return offset
 
 	def update_tg_offset(self, last_update_id: any) -> int:
@@ -238,76 +241,7 @@ class NotifierDB():
 
 		return [row[0] for row in response]
 
-
-def store_sent_event(user_id: int, event_id: str) -> None:
-	"""Store sent notifications in the database.
-
-	Args:
-		user_id (int): id of the user.
-		event_id (str): id of the event.
-	"""
-	DB = NotifierDB()
-	DB.store_event(user_id, event_id)
-	DB.close_connection()
-	logger.debug(f"Stored sent event ID {event_id} for user ID {user_id}.")
-
-	return
-
-def get_all_sent_id(user_id:int) -> list[int]:
-	"""Get the id of the sent notifications of a user.
-
-	Args:
-		user_id (int): id of the user.
-
-	Returns:
-		list: list of the id of the sent notifications of the user.
-	"""
-	DB = NotifierDB()
-	k = DB.get_all_sent_id(user_id)
-	DB.close_connection()
-	logger.debug("Fetched all sent notification IDs.")
-
-	return k
-
-def increment_notification_number(user_id: int) -> None:
-	"""Increment the number of notifications of a user.
-
-	Args:
-		user_id (int): id of the user.
-	"""
-	DB = NotifierDB()
-	DB.increment_notification_number(user_id)
-	DB.close_connection()
-	logger.debug(f"Incremented notification number for user ID {user_id}.")
-	return
-
-def get_subscribers() -> list[dict]:
-	"""Get the list of the subscribers.
-
-	returns:
-		list: list of the subscribers.
-	"""
-	DB = NotifierDB()
-	k = DB.get_subscribers()
-	DB.close_connection()
-	logger.debug("Fetched all subscribers.")
-
-	return k
-
-def update_telegram_id(user_email: str, telegram_id: any) -> None:
-	"""Set the telegram id of a user using its email.
-
-	Args:
-		user_email (str): email of the user.
-		telegram_id (str): telegram id of the user.
-	"""
-	DB = NotifierDB()
-	DB.update_telegram_id(user_email, telegram_id)
-	DB.close_connection()
-	logger.debug(f"Updated telegram ID for user with email {user_email}.")
-	return
-
-def store_notification(user_id: int, notified_events: list) -> None:
+def store_notification(user_id: int, notified_events: list, DB: NotifierDB) -> None:
 	"""For each notified event, store the notification in the database
 	and increment the number of notifications.
 
@@ -317,48 +251,12 @@ def store_notification(user_id: int, notified_events: list) -> None:
 	"""
 	notified_events = (notified_events[0][0] if len(notified_events[0]) > 0 else []) + (notified_events[0][1] if len(notified_events[0]) > 1 else []) + (notified_events[1][0] if len(notified_events[1]) > 0 else []) + (notified_events[1][1] if len(notified_events[1]) > 1 else [])
 	for event in notified_events:
-		store_sent_event(user_id, event["uid"])
-		increment_notification_number(user_id)
+		DB.store_event(user_id, event["uid"])
+		DB.increment_notification_number(user_id)
 	logger.debug(f"Stored notifications for user ID {user_id}.")
 	return
-
-def update_tg_offset(last_update_id: any) -> None:
-	"""Update the offset of the telegram bot.
-
-	Args:
-		last_update_id (int): id of the last update.
-	"""	
-	DB = NotifierDB()
-	DB.update_tg_offset(last_update_id)
-	DB.close_connection()
-	logger.debug(f"Updated telegram offset to {last_update_id}.")
 	
-	return 
-
-def get_tg_offset() -> str:
-	"""Get the offset of the telegram bot.
-
-	Returns:
-		int: offset of the telegram bot.
-	"""
-	DB = NotifierDB()
-	offset = DB.get_tg_offset()
-	DB.close_connection()
-	logger.debug("Fetched telegram offset.")
-
-	if offset == '':
-		return
-	else:
-		return offset
-	
-def set_pref_telegram(user_email: str) -> None:
-	DB = NotifierDB()
-	DB.set_pref_telegram(user_email)
-	DB.close_connection()
-	logger.debug(f"Set notification preference to telegram true (3) for user with email {user_email}.")
-	
-	return
-
+# TODO optimize
 def unsub_user(email: str, user_id: str, unsub_token: str) -> None:
 	'''
 	Unsubscribe the user from the service.
@@ -399,11 +297,3 @@ def unsub_user(email: str, user_id: str, unsub_token: str) -> None:
 	finally:
 		# Close the database connection
 		DB.close_connection()
-
-def get_similar_classes(keywords: list[str]) -> list[str]:
-	DB = NotifierDB()
-	k = DB.get_similar_classes(keywords)
-	DB.close_connection()
-	logger.debug(f"Fetched similar classes for keywords: {keywords} -> {k}")
-
-	return k

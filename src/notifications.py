@@ -1,11 +1,11 @@
 from src.logger import Logger
 logger = Logger()
 
-from src.db import store_notification
+from src.db import store_notification, NotifierDB
 from src.email import email_notification
 from src.telegram import tg_notification
 
-def send_notification(sub: dict, events: list, type: str) -> None:
+def send_notification(sub: dict, events: list, type: str, DB: NotifierDB) -> None:
 	"""
 	Send a notification to the user based on his notification preference.
 	
@@ -31,6 +31,6 @@ def send_notification(sub: dict, events: list, type: str) -> None:
 		logger.debug(f"No notification preference set for {sub['email']}.")
 		return
 
-	store_notification(sub["id"], events)
+	store_notification(sub["id"], events, DB)
 
 	return

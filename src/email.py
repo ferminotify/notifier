@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 import imaplib
 from datetime import datetime, timezone, timedelta
 from jinja2 import Environment, FileSystemLoader
-from src.db import unsub_user
+from src.db import unsub_user # TODO optimize unsub
 import traceback
 env = Environment(loader=FileSystemLoader('src/email_templates'))
 from src.logger import Logger
