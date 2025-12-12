@@ -29,7 +29,7 @@ class Telegram:
         bot (telepot.Bot): The telegram bot.
     """
 
-    def __init__(self, DB):
+    def __init__(self, DB=None):
         load_dotenv()
         self.API_KEY = os.getenv('TELEGRAM_API_KEY')
         self.bot = telepot.Bot(self.API_KEY)
