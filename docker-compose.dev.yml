@@ -1,0 +1,43 @@
+name: ferminotify-dev
+
+services:
+
+  notifier:
+    container_name: fn-notifier
+    image: ferminotify/dev-notifier
+    build: .
+    volumes:
+      - .:/usr/src/app
+    environment:
+      # DB — joins ferminotify-dev network, reaches backend's postgres container
+      DB_HOST: db
+      DB_NAME: fn-test-db
+      DB_USER: fn-test-user
+      DB_PASSWORD: test
+      DB_PORT: 5432
+      # Email → MailPit (no STARTTLS, set EMAIL_STARTTLS=false)
+      EMAIL_STARTTLS: "false"
+      EMAIL_SERVICE_URL: mailpit
+      EMAIL_SERVICE_PORT: 1025
+      EMAIL_SERVICE_PASSWORD: test
+      EMAIL_SERVICE_SAVE_URL: mailpit
+      EMAIL_SERVICE_AZURE_URL: mailpit
+      EMAIL_SERVICE_AZURE_PASSWORD: test
+      EMAIL_SERVICE_AZURE_USERNAME: test@example.com
+      EMAIL_SERVICE_MAILGUN_URL: mailpit
+      EMAIL_SERVICE_UNSUB_URL: mailpit
+      EMAIL_SERVICE_UNSUB_PASSWORD: test
+      # Telegram: leave empty to skip bot registration gracefully
+      TELEGRAM_API_KEY: ""
+      ENVIROMENT: development
+      LOG_LEVEL: DEBUG
+      TZ: Europe/Rome
+    networks:
+      - ferminotify-dev
+
+networks:
+  ferminotify-dev:
+    # Must match the network created by the backend compose.
+    # Start the backend compose first: docker compose -f docker-compose.dev.yml up -d
+    name: ferminotify-dev
+    external: true
