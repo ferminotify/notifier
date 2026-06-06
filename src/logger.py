@@ -96,29 +96,33 @@ class Logger:
 
 class NotifierDB():
     def __init__(self):
-        load_dotenv(override=True)
-        # Inizializzatore della connessione
-        HOSTNAME = os.getenv('HOSTNAME')
-        DATABASE = os.getenv('DATABASE')
-        USERNAME = os.getenv('USERNAME')
-        PASSWORD = os.getenv('PASSWORD')
-        PORT_ID = os.getenv('PORT_ID')
+        load_dotenv()
+        HOSTNAME = os.getenv('DB_HOST') or os.getenv('HOSTNAME')
+        DATABASE = os.getenv('DB_NAME') or os.getenv('DATABASE')
+        USERNAME = os.getenv('DB_USER') or os.getenv('USERNAME')
+        PASSWORD = os.getenv('DB_PASSWORD') or os.getenv('PASSWORD')
+        PORT_ID  = os.getenv('DB_PORT') or os.getenv('PORT_ID')
 
-        if(os.getenv('ENVIROMENT') == "backup"):
+        if os.getenv('ENVIROMENT') == "backup":
             self.TABLE = "logs_backup_notifier"
         else:
             self.TABLE = "logs_notifier"
 
-        try:
-            self.connection = psycopg2.connect(
-                host=HOSTNAME,
-                dbname=DATABASE,
-                user=USERNAME,
-                password=PASSWORD,
-                port=PORT_ID,
-            )
-        except Exception:
-            NotifierDB()
+        for attempt in range(10):
+            try:
+                self.connection = psycopg2.connect(
+                    host=HOSTNAME,
+                    dbname=DATABASE,
+                    user=USERNAME,
+                    password=PASSWORD,
+                    port=PORT_ID,
+                )
+                break
+            except Exception:
+                if attempt < 9:
+                    import time; time.sleep(10)
+                else:
+                    raise
 
         self.cursor = self.connection.cursor()
 

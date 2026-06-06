@@ -28,29 +28,32 @@ class NotifierDB():
 	"""
 
 	def __init__(self):
-		load_dotenv(override=True)
-		# Inizializzatore della connessione
-		HOSTNAME = os.getenv('HOSTNAME')
-		DATABASE = os.getenv('DATABASE')
-		USERNAME = os.getenv('USERNAME')
-		PASSWORD = os.getenv('PASSWORD')
-		PORT_ID = os.getenv('PORT_ID')
+		load_dotenv()
+		HOSTNAME = os.getenv('DB_HOST') or os.getenv('HOSTNAME')
+		DATABASE = os.getenv('DB_NAME') or os.getenv('DATABASE')
+		USERNAME = os.getenv('DB_USER') or os.getenv('USERNAME')
+		PASSWORD = os.getenv('DB_PASSWORD') or os.getenv('PASSWORD')
+		PORT_ID  = os.getenv('DB_PORT') or os.getenv('PORT_ID')
 
-		try:
-			self.connection = psycopg2.connect(
-				host=HOSTNAME,
-				dbname=DATABASE,
-				user=USERNAME,
-				password=PASSWORD,
-				port=PORT_ID,
-				#sslmode='verify-full',
-        			#sslrootcert=ssl_cert_path
-			)
-			logger.debug("Database connection established.")
-		except Exception as e:
-			logger.error(f"Error connecting to the database: {e}")
-			time.sleep(30)
-			NotifierDB()
+		for attempt in range(10):
+			try:
+				self.connection = psycopg2.connect(
+					host=HOSTNAME,
+					dbname=DATABASE,
+					user=USERNAME,
+					password=PASSWORD,
+					port=PORT_ID,
+					#sslmode='verify-full',
+					#sslrootcert=ssl_cert_path
+				)
+				logger.debug("Database connection established.")
+				break
+			except Exception as e:
+				logger.error(f"Error connecting to the database: {e}")
+				if attempt < 9:
+					time.sleep(10)
+				else:
+					raise
 
 		self.cursor = self.connection.cursor()
 
@@ -213,29 +216,18 @@ class NotifierDB():
 
 		keywords = [kw.replace(" ", "") for kw in keywords] # remove spaces
 
-		pattern = "{}".format(", ".join(f"('{keyword}')" for keyword in keywords))
-		self.cursor.execute(f"""
-			WITH items AS (
-				VALUES 
-					{pattern}
-			)
-			SELECT 
-				c.name AS best_match
-			FROM 
-				items
+		self.cursor.execute("""
+			SELECT c.name AS best_match
+			FROM UNNEST(%s::text[]) AS kw(word)
 			JOIN LATERAL (
-				SELECT 
-					name
-				FROM 
-					classes
-				WHERE 
-					name % items.column1
-					AND similarity(name, items.column1) > 0.3
-				ORDER BY 
-					similarity(name, items.column1) DESC
+				SELECT name
+				FROM classes
+				WHERE name %% kw.word
+				  AND similarity(name, kw.word) > 0.3
+				ORDER BY similarity(name, kw.word) DESC
 				LIMIT 1
-			) c ON true;
-		""")
+			) c ON true
+		""", (keywords,))
 		response = self.cursor.fetchall()
 		self.connection.commit()
 

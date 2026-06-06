@@ -29,12 +29,13 @@ ELSE 1. Mailgun if error 2. Azure
 '''
 
 EMAIL_SENDER_INDEX = 0
+load_dotenv()
+_default_sender   = os.getenv('EMAIL_SENDER_PRIMARY',   'master@fn.lkev.in')
+_secondary_sender = os.getenv('EMAIL_SENDER_SECONDARY', 'donotreply@fn.lkev.in')
+
 class Email:
 
-	sender_emails = [
-		"master@fn.lkev.in",
-		"donotreply@fn.lkev.in"
-	]
+	sender_emails = [_default_sender, _secondary_sender]
 	
 	def __init__(self, domain: str = None):
 		global EMAIL_SENDER_INDEX
@@ -59,7 +60,8 @@ class Email:
 			EMAIL_SERVICE_PORT = os.getenv('EMAIL_SERVICE_PORT')
 			EMAIL_SERVICE_URL = os.getenv('EMAIL_SERVICE_MAILGUN_URL')
 		self.client = smtplib.SMTP(EMAIL_SERVICE_URL, EMAIL_SERVICE_PORT)
-		self.client.starttls()
+		if os.getenv('EMAIL_STARTTLS', 'true').lower() != 'false':
+			self.client.starttls()
 		self.client.login(EMAIL_SERVICE_USERNAME, EMAIL_SERVICE_PASSWORD)
 		logger.debug("SMTP client initialized and started TLS.")
 		return
