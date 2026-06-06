@@ -51,6 +51,9 @@ jobs:
     if: ${{ github.ref == 'refs/heads/main' }}
     environment: 'Server SSH'
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Ensure deploy directory exists
         uses: appleboy/ssh-action@v1.2.0
         with:
