@@ -93,5 +93,6 @@ jobs:
             set -e
             cd "${{ secrets.DEPLOY_PATH }}"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker rm -f fn-notifier 2>/dev/null || true
             docker compose pull
             docker compose up -d --remove-orphans
