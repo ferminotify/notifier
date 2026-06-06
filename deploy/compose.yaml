@@ -1,0 +1,13 @@
+# Production compose for Fermi Notify Notifier
+# Usage on server:
+#   - Place this file in $DEPLOY_PATH (e.g., /opt/fermi-notifier)
+#   - Create an .env file alongside it with all required variables
+#   - Run: docker compose pull && docker compose up -d
+
+services:
+  notifier:
+    image: ghcr.io/ferminotify/notifier:latest
+    container_name: fn-notifier
+    env_file:
+      - .env
+    restart: unless-stopped
