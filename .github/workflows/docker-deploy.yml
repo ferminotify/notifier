@@ -75,6 +75,7 @@ jobs:
           port: ${{ secrets.SSH_PORT || 22 }}
           source: "deploy/compose.yaml"
           target: "${{ secrets.DEPLOY_PATH }}"
+          strip_components: 1
 
       - name: Pull and restart service
         uses: appleboy/ssh-action@v1.2.0
@@ -90,7 +91,7 @@ jobs:
           envs: GHCR_USER,GHCR_TOKEN
           script: |
             set -e
-            cd "${{ secrets.DEPLOY_PATH }}/deploy"
+            cd "${{ secrets.DEPLOY_PATH }}"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             docker compose pull
             docker compose up -d --remove-orphans
