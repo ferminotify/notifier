@@ -43,10 +43,12 @@ class Email:
 		EMAIL_SERVICE_USERNAME = self.sender_emails[EMAIL_SENDER_INDEX]
 		load_dotenv()
 		if domain == "fermimn.edu.it":
-			# Self hosted
-			EMAIL_SERVICE_PASSWORD = os.getenv('EMAIL_SERVICE_PASSWORD')
+			# Routed through Azure (self-hosted SMTP unavailable in prod)
+			EMAIL_SERVICE_PASSWORD = os.getenv('EMAIL_SERVICE_AZURE_PASSWORD')
 			EMAIL_SERVICE_PORT = os.getenv('EMAIL_SERVICE_PORT')
-			EMAIL_SERVICE_URL = os.getenv('EMAIL_SERVICE_URL')
+			EMAIL_SERVICE_URL = os.getenv('EMAIL_SERVICE_AZURE_URL')
+			EMAIL_SERVICE_USERNAME = os.getenv('EMAIL_SERVICE_AZURE_USERNAME')
+			EMAIL_SENDER_INDEX = 1
 		elif domain == None:
 			# Azure
 			EMAIL_SERVICE_PASSWORD = os.getenv('EMAIL_SERVICE_AZURE_PASSWORD')
@@ -111,7 +113,7 @@ class Email:
 		logger.debug(f"HTML email sent to {receiver} with subject: {subject}.")
 
 		self.__update_sender_index()
-		self.save_mail(data)
+		# self.save_mail(data)  # disabled: IMAP save not available in prod
 
 		return
 	
