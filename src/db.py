@@ -64,13 +64,16 @@ class NotifierDB():
 		return
 
 	def get_subscribers(self) -> list[tuple]:
-		"""Returns a list of all the subscribers in the database as a list of 
-		tuples.
+		"""Returns the confirmed subscribers in the database as a list of
+		dictionaries.
 
 		Returns:
 			list: list of tuples containing all the subscribers.
 		"""
-		self.cursor.execute("SELECT * FROM subscribers")
+		# Only confirmed accounts (notifications = -1 until the email link is opened):
+		# notifying an unconfirmed one would email an address nobody proved, and counting
+		# that notification would mark it confirmed.
+		self.cursor.execute("SELECT * FROM subscribers WHERE notifications >= 0")
 		fetched_subscribers = self.cursor.fetchall()
 		self.connection.commit()
 
@@ -288,4 +291,4 @@ def unsub_user(email: str, user_id: str, unsub_token: str) -> None:
 
 	finally:
 		# Close the database connection
-		DB.close_connection()
+		DB.close_connection()
