@@ -1,6 +1,6 @@
 from src.db import NotifierDB
 from src.telegram import register_new_telegram_user
-from src.events import get_events, filter_events_kw, match_keywords, remove_sent_events
+from src.events import get_events, filter_events_kw, search_events, remove_sent_events
 from datetime import datetime, timedelta
 from src.notifications import send_notification
 from src.email import unsub
@@ -46,11 +46,27 @@ def main():
 			errors += 1
 		'''
 
-		# 4. Get all the events
-		events = get_events() # sample ==> events
-		# 4.1. Filter events of today and tomorrow
+		# 4. Today's and tomorrow's events for every user's keywords, from the backend (the
+		# school calendar, same rules as "Cerca eventi" and the timetable page). Similar tags
+		# are looked up here once per user, so all keywords go in one request.
+		similar_tags_of = {}
+		for sub in subs:
+			if sub["notification_preferences"] != 0 and sub["include_similar_tags"] == True:
+				similar = DB.get_similar_classes(sub["tags"])
+				similar_tags_of[sub["id"]] = [tag for tag in similar if tag not in (sub["tags"] or [])]
+		all_keywords = [kw for sub in subs if sub["notification_preferences"] != 0 for kw in (sub["tags"] or [])]
+		all_keywords += [kw for tags in similar_tags_of.values() for kw in tags]
 		today_rome = datetime.now(pytz.timezone("Europe/Rome")).replace(hour=0, minute=0, second=0, microsecond=0)
 		tomorrow_rome = today_rome + timedelta(days=1)
+		matches = search_events(all_keywords, today_rome.strftime("%Y-%m-%d"), tomorrow_rome.strftime("%Y-%m-%d"))
+		if matches is not None:
+			events = matches["events"]
+			logger.info(f"[4] Events and keywords from the backend.")
+		else:
+			# Backend down: the CSV, and the keywords' words in the titles
+			events = get_events() # sample ==> events
+			logger.info(f"[4] Events from the CSV, keywords matched locally (backend unavailable).")
+		# 4.1. Filter events of today and tomorrow
 		events_today = [
 			event for event in events
 			if (
@@ -75,18 +91,6 @@ def main():
 				tomorrow_rome.date() <= datetime.strptime(event["start.date"], "%Y-%m-%d").date() < tomorrow_rome.date() + timedelta(days=1)
 			)
 		]
-		# 4.1.1 Which events concern which keywords (backend, same rules as the timetable page).
-		# Similar tags are looked up here once per user, so all keywords go in one request.
-		similar_tags_of = {}
-		for sub in subs:
-			if sub["notification_preferences"] != 0 and sub["include_similar_tags"] == True:
-				similar = DB.get_similar_classes(sub["tags"])
-				similar_tags_of[sub["id"]] = [tag for tag in similar if tag not in (sub["tags"] or [])]
-		all_keywords = [kw for sub in subs if sub["notification_preferences"] != 0 for kw in (sub["tags"] or [])]
-		all_keywords += [kw for tags in similar_tags_of.values() for kw in tags]
-		matches = match_keywords(events_today + events_tomorrow, all_keywords)
-		logger.info(f"[4.1] Keywords matched {'on the backend' if matches is not None else 'locally (backend unavailable)'}.")
-
 		# 4.2 Reformat events time
 		for event in events_today + events_tomorrow:
 			if event.get('start.date'):

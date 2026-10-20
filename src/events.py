@@ -6,6 +6,8 @@ import requests
 import csv
 import re
 import unicodedata
+from datetime import datetime, timedelta
+import pytz
 
 """
 All the operations involving the Fermi Calendar and its events.
@@ -64,35 +66,54 @@ def _title_has(summary: str, keyword: str) -> bool:
 	w = _words(summary)
 	return any(w[i:i + len(kw)] == kw for i in range(len(w) - len(kw) + 1))
 
-def match_keywords(events: list[dict], keywords: list[str]) -> dict | None:
+def _from_backend(ev: dict) -> dict:
 	"""
-	Which events concern which keywords, from the backend: the same rules as the timetable
-	page (whole years like "CLASSI PRIME", joint classes, teachers' names, rooms).
+	Backend event {uid, summary, date, start, end, allDay} as a CSV row (get_events), the
+	format the rest of the notifier reads: Rome times with offset, all-day end exclusive.
+	"""
+	row = {"uid": ev["uid"], "summary": ev["summary"], "description": "",
+	       "start.date": "", "start.dateTime": "", "start.timeZone": "Europe/Rome",
+	       "end.date": "", "end.dateTime": "", "end.timeZone": "Europe/Rome"}
+	if ev.get("allDay") or not ev.get("start"):
+		day = datetime.strptime(ev["date"], "%Y-%m-%d")
+		row["start.date"] = day.strftime("%Y-%m-%d")
+		row["end.date"] = (day + timedelta(days=1)).strftime("%Y-%m-%d")
+		return row
+	rome = pytz.timezone("Europe/Rome")
+	at = lambda hm: rome.localize(datetime.strptime(f"{ev['date']} {hm}", "%Y-%m-%d %H:%M")).isoformat()
+	row["start.dateTime"] = at(ev["start"])
+	row["end.dateTime"] = at(ev.get("end") or ev["start"])
+	return row
+
+def search_events(keywords: list[str], date_from: str, date_to: str) -> dict | None:
+	"""
+	The events of those days (YYYY-MM-DD, included) that concern the keywords, from the
+	backend: the same endpoint and rules as "Cerca eventi" and the timetable page (whole
+	years like "CLASSI PRIME", joint classes, teachers' names, rooms), on the school calendar.
 
 	Returns:
-		dict: {"matches": keyword -> set of uids, "optional": keyword -> category -> set of uids},
-		or None when the backend is not reachable (the caller then falls back to the plain
-		word search). "optional": opt-in activities (help desks…) reaching the keyword's class
-		only through its year, sent only to users with that category in notify_optin.
+		dict: {"events": [CSV-like rows], "matches": keyword -> set of uids,
+		"optional": keyword -> category -> set of uids}, or None when the backend is not
+		reachable (the caller then reads the CSV and searches the words itself). "optional":
+		opt-in activities (help desks…) reaching the keyword's class only through its year,
+		sent only to users with that category in notify_optin.
 	"""
 	url = os.getenv("BACKEND_URL")
 	key = os.getenv("NOTIFICATION_API_KEY")
-	if not url or not key or not events or not keywords:
+	if not url or not key:
 		return None
 	try:
 		response = requests.post(
-			f"{url.rstrip('/')}/notifier/match",
-			json={
-				"events": [{"uid": e["uid"], "summary": e["summary"]} for e in events],
-				"keywords": sorted(set(keywords)),
-			},
-			headers={"Authorization": f"Bearer {key}"},
+			f"{url.rstrip('/')}/timetable/search",
+			json={"keywords": sorted(set(keywords)), "from": date_from, "to": date_to},
+			headers={"Authorization": f"Bearer {key}"},  # the notifier skips the public limits
 			timeout=60,  # the backend may be waking up
 		)
 		response.raise_for_status()
 		data = response.json()
-		logger.debug(f"Matched {len(data['matches'])} keywords on the backend.")
+		logger.debug(f"Backend: {len(data['events'])} events for {len(data['matches'])} keywords.")
 		return {
+			"events": [_from_backend(e) for e in data["events"]],
 			"matches": {kw: set(uids) for kw, uids in data["matches"].items()},
 			"optional": {
 				kw: {cat: set(uids) for cat, uids in cats.items()}
@@ -100,7 +121,7 @@ def match_keywords(events: list[dict], keywords: list[str]) -> dict | None:
 			},
 		}
 	except Exception as e:
-		logger.error(f"Keyword match on the backend failed, using the word search: {e}")
+		logger.error(f"Event search on the backend failed, using the CSV: {e}")
 		return None
 
 def filter_events_kw(events, keywords, matches: dict | None = None, optin=()):
