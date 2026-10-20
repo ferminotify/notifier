@@ -1,6 +1,6 @@
 from src.db import NotifierDB
 from src.telegram import register_new_telegram_user
-from src.events import get_events, filter_events_kw, remove_sent_events
+from src.events import get_events, filter_events_kw, match_keywords, remove_sent_events
 from datetime import datetime, timedelta
 from src.notifications import send_notification
 from src.email import unsub
@@ -75,6 +75,18 @@ def main():
 				tomorrow_rome.date() <= datetime.strptime(event["start.date"], "%Y-%m-%d").date() < tomorrow_rome.date() + timedelta(days=1)
 			)
 		]
+		# 4.1.1 Which events concern which keywords (backend, same rules as the timetable page).
+		# Similar tags are looked up here once per user, so all keywords go in one request.
+		similar_tags_of = {}
+		for sub in subs:
+			if sub["notification_preferences"] != 0 and sub["include_similar_tags"] == True:
+				similar = DB.get_similar_classes(sub["tags"])
+				similar_tags_of[sub["id"]] = [tag for tag in similar if tag not in (sub["tags"] or [])]
+		all_keywords = [kw for sub in subs if sub["notification_preferences"] != 0 for kw in (sub["tags"] or [])]
+		all_keywords += [kw for tags in similar_tags_of.values() for kw in tags]
+		matches = match_keywords(events_today + events_tomorrow, all_keywords)
+		logger.info(f"[4.1] Keywords matched {'on the backend' if matches is not None else 'locally (backend unavailable)'}.")
+
 		# 4.2 Reformat events time
 		for event in events_today + events_tomorrow:
 			if event.get('start.date'):
@@ -103,15 +115,14 @@ def main():
 			# 5.1.0 If user has include_similar_tags enabled add similar tags to the user's keywords
 			_similar_events_today = _similar_events_tomorrow = []
 			if sub["include_similar_tags"] == True:
-				similar_tags = DB.get_similar_classes(sub["tags"])
-				similar_tags = [tag for tag in similar_tags if tag not in sub["tags"]] # remove duplicates
+				similar_tags = similar_tags_of.get(sub["id"], [])
 				logger.debug(f"Similar tags for {sub['email']}: {similar_tags}")
-				_similar_events_today = filter_events_kw(events_today, similar_tags)
-				_similar_events_tomorrow = filter_events_kw(events_tomorrow, similar_tags)
+				_similar_events_today = filter_events_kw(events_today, similar_tags, matches, sub.get("notify_optin"))
+				_similar_events_tomorrow = filter_events_kw(events_tomorrow, similar_tags, matches, sub.get("notify_optin"))
 
 			# 5.1.1 Filter all events that don't match the user's keywords
-			_events_today = filter_events_kw(events_today, sub["tags"])
-			_events_tomorrow = filter_events_kw(events_tomorrow, sub["tags"])
+			_events_today = filter_events_kw(events_today, sub["tags"], matches, sub.get("notify_optin"))
+			_events_tomorrow = filter_events_kw(events_tomorrow, sub["tags"], matches, sub.get("notify_optin"))
 			if not (_events_today or _events_tomorrow or _similar_events_today or _similar_events_tomorrow):
 				continue
 			# remove duplicates between _events and _similar_events
