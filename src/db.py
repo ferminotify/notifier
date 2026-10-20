@@ -236,6 +236,48 @@ class NotifierDB():
 
 		return [row[0] for row in response]
 
+	def get_subscribers_push(self) -> list[dict]:
+		"""Push devices with their user's keywords and notification settings, one row per
+		device. notify_optin read through to_jsonb: NULL (no categories) on a database that
+		does not have the column yet."""
+		self.cursor.execute("""
+			SELECT
+				p.sub_id AS id,
+				p.endpoint,
+				p.send_push_with_notifications,
+				p.device_id,
+				s.tags AS keywords,
+				s.notification_day_before,
+				s.notification_time,
+				s.email,
+				to_jsonb(s) -> 'notify_optin' AS notify_optin
+			FROM push AS p
+			JOIN subscribers AS s ON p.sub_id = s.id
+		""")
+		rows = self.cursor.fetchall()
+		self.connection.commit()
+		column_names = [desc[0] for desc in self.cursor.description]
+		logger.debug("Fetched all push subscribers from the database.")
+		return [dict(zip(column_names, row)) for row in rows]
+
+	def get_all_sent_push_id(self, user_id: int, device_id: str) -> list[str]:
+		"""Event uids already pushed to this device of the user."""
+		self.cursor.execute(
+			"SELECT uid FROM push_sent WHERE sub_id = %s AND device_id = %s",
+			(user_id, device_id)
+		)
+		response = [row[0] for row in self.cursor.fetchall()]
+		self.connection.commit()
+		return response
+
+	def store_push_sent(self, user_id: int, event_id: str, device_id: str) -> None:
+		"""Record an event pushed to a device."""
+		self.cursor.execute(
+			"INSERT INTO push_sent (sub_id, uid, device_id) VALUES (%s, %s, %s)",
+			(user_id, event_id, device_id)
+		)
+		self.connection.commit()
+
 def store_notification(user_id: int, notified_events: list, DB: NotifierDB) -> None:
 	"""For each notified event, store the notification in the database
 	and increment the number of notifications.

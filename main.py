@@ -3,6 +3,7 @@ from src.telegram import register_new_telegram_user
 from src.events import get_events, filter_events_kw, search_events, remove_sent_events
 from datetime import datetime, timedelta
 from src.notifications import send_notification
+from src.push import send_pushes
 from src.email import unsub
 from time import sleep
 import pytz
@@ -31,7 +32,8 @@ def main():
 
 		# 1. Get all the subscribers data from the database
 		subs = DB.get_subscribers() # sample ==> subscribers
-		logger.info(f"[1] Got {len(subs)} subscribers.")
+		push_subs = DB.get_subscribers_push()  # one row per push device
+		logger.info(f"[1] Got {len(subs)} subscribers and {len(push_subs)} push devices.")
 
 		# 2. Register new telegram users
 		register_new_telegram_user(subs, DB)
@@ -56,6 +58,7 @@ def main():
 				similar_tags_of[sub["id"]] = [tag for tag in similar if tag not in (sub["tags"] or [])]
 		all_keywords = [kw for sub in subs if sub["notification_preferences"] != 0 for kw in (sub["tags"] or [])]
 		all_keywords += [kw for tags in similar_tags_of.values() for kw in tags]
+		all_keywords += [kw for sub in push_subs for kw in (sub["keywords"] or [])]
 		today_rome = datetime.now(pytz.timezone("Europe/Rome")).replace(hour=0, minute=0, second=0, microsecond=0)
 		tomorrow_rome = today_rome + timedelta(days=1)
 		matches = search_events(all_keywords, today_rome.strftime("%Y-%m-%d"), tomorrow_rome.strftime("%Y-%m-%d"))
@@ -91,6 +94,10 @@ def main():
 				tomorrow_rome.date() <= datetime.strptime(event["start.date"], "%Y-%m-%d").date() < tomorrow_rome.date() + timedelta(days=1)
 			)
 		]
+		# Push reads the ISO times: its own copies, before 4.2 reformats them for email/Telegram
+		push_today = [dict(e) for e in events_today]
+		push_tomorrow = [dict(e) for e in events_tomorrow]
+
 		# 4.2 Reformat events time
 		for event in events_today + events_tomorrow:
 			if event.get('start.date'):
@@ -185,6 +192,12 @@ def main():
 				logger.error(f"[X] Error sending notification to {sub['email']}: {e}")
 				errors += 1
 		
+		# 5.4 Push notifications, same events and matches (was the separate notifier-push)
+		pushed, push_errors = send_pushes(DB, push_subs, push_today, push_tomorrow, matches)
+		logger.info(f"[5] Sent push to {pushed} devices with {push_errors} errors.")
+		notifications += pushed
+		errors += push_errors
+
 		time_diff = datetime.now(pytz.timezone("Europe/Rome")) - time_start
 
 		if errors > 0:
