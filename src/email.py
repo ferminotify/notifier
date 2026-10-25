@@ -95,7 +95,7 @@ class Email:
 		return
 
 	def sendHTMLMail(self, receiver: str, subject: str, 
-						body: str, html_body: str) -> None:
+						body: str, html_body: str, headers: dict = None) -> None:
 		global EMAIL_SENDER_INDEX
 		data = MIMEMultipart('alternative')
 		data["Subject"] = subject
@@ -103,6 +103,8 @@ class Email:
 			f"Fermi Notify Team <{self.sender_emails[EMAIL_SENDER_INDEX]}>"
 		data["To"] = receiver
 		data["Date"] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
+		for name, value in (headers or {}).items():
+			data[name] = value
 		part1 = MIMEText(body, "plain")
 		part2 = MIMEText(html_body, "html")
 		data.attach(part1)
@@ -157,7 +159,7 @@ def send_email(email: dict) -> None:
 	try:
 		EM.sendHTMLMail(
 			email["Receiver"], email["Subject"],
-			email["Raw"], email["Body"]
+			email["Raw"], email["Body"], email.get("Headers")
 		)
 	except Exception as e:
 		logger.error(f"Error sending email to {email['Receiver']} ({e}). Retrying with Azure.")
@@ -165,14 +167,14 @@ def send_email(email: dict) -> None:
 			EM = Email() # Use Azure
 			EM.sendHTMLMail(
 				email["Receiver"], email["Subject"],
-				email["Raw"], email["Body"]
+				email["Raw"], email["Body"], email.get("Headers")
 			)
 		except Exception as e:
 			logger.info(f"Error sending email to {email['Receiver']} ({e}). Retrying with Self-hosted.")
 			EM = Email("fermimn.edu.it") # Use self hosted
 			EM.sendHTMLMail(
 				email["Receiver"], email["Subject"],
-				email["Raw"], email["Body"]
+				email["Raw"], email["Body"], email.get("Headers")
 			)
 	EM.closeConnection()
 
@@ -196,6 +198,17 @@ def notify_admin(new_user: str) -> None:
 #											#
 #############################################
 
+def unsubscribe_headers(sub: dict) -> dict:
+	"""
+	The email client's own "Annulla iscrizione", one click (RFC 8058): the client POSTs to the
+	backend's /unsubscribe, which turns the emails off (Telegram and push stay).
+	"""
+	api = os.getenv("PUBLIC_API_URL", "https://api.fn.lkev.in").rstrip("/")
+	return {
+		"List-Unsubscribe": f"<{api}/unsubscribe?id={sub['id']}&token={sub['unsub_token']}>",
+		"List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+	}
+
 def email_notification(sub: dict, events: list, type: str) -> None:
 	'''
 	This function is interfaced with the notifications.py
@@ -212,7 +225,7 @@ def email_notification(sub: dict, events: list, type: str) -> None:
 	email = {
 		"Receiver": sub["email"],
 		"Raw": f"{type}:\n{total_events} event{'i' if total_events > 1 else 'o'}",
-		"List-Unsubscribe": f"<mailto:unsubscribe@fn.lkev.in?subject=Unsubscribe%20%3A%28&id={sub['id']}&token={sub['unsub_token']}&email={sub['email']}>, <https://fn.lkev.in/user/unsubscribe?id={sub['id']}&token={sub['unsub_token']}&email={sub['email']}>",
+		"Headers": unsubscribe_headers(sub),
 	}
 	email["Subject"] = f"{type} ({total_events} event{'i' if total_events > 1 else 'o'})" if type == 'Daily Notification' else type
 	try:
