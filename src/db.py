@@ -200,42 +200,6 @@ class NotifierDB():
 		
 		return
 	
-	def get_similar_classes(self, keywords: list[str]) -> list[str]:
-		# classes table must have pg_trgm extension enabled
-		# CREATE EXTENSION pg_trgm;
-		# classes table must have a GIN index on the name column
-		# CREATE INDEX idx_classes_name_trgm ON classes USING gin (name gin_trgm_ops);
-		"""Get similar classes from the database based on fuzzy matching.
-
-		Args:
-			keywords (list): list of keywords.
-
-		Returns:
-			list: list of similar classes.
-		"""
-		
-		if not keywords:
-			return []
-
-		keywords = [kw.replace(" ", "") for kw in keywords] # remove spaces
-
-		self.cursor.execute("""
-			SELECT c.name AS best_match
-			FROM UNNEST(%s::text[]) AS kw(word)
-			JOIN LATERAL (
-				SELECT name
-				FROM classes
-				WHERE name %% kw.word
-				  AND similarity(name, kw.word) > 0.3
-				ORDER BY similarity(name, kw.word) DESC
-				LIMIT 1
-			) c ON true
-		""", (keywords,))
-		response = self.cursor.fetchall()
-		self.connection.commit()
-
-		return [row[0] for row in response]
-
 	def get_subscribers_push(self) -> list[dict]:
 		"""Push devices with their user's keywords and notification settings, one row per
 		device. notify_optin read through to_jsonb: NULL (no categories) on a database that
@@ -333,4 +297,4 @@ def unsub_user(email: str, user_id: str, unsub_token: str) -> None:
 
 	finally:
 		# Close the database connection
-		DB.close_connection()
+		DB.close_connection()
