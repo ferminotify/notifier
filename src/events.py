@@ -47,9 +47,7 @@ def get_events() -> list[dict]:
 
 def _words(text: str, keyword: bool = False) -> list[str]:
 	"""
-	Upper-case words without accents: "Cracò" -> ["CRACO"], "5 CIIN" -> ["5CIIN"].
-	In keywords the ordinal marks and dots go too ("5ºCIIN", "3A." -> "5CIIN", "3A").
-	Same rules as the backend (utils/timetable/keywords.js).
+	Upper-case words without accents: "Pippò" -> ["PIPPO"], "5 CIIN" -> ["5CIIN"], "5ºCIIN" -> ["5CIIN"]
 	"""
 	text = unicodedata.normalize("NFD", str(text or "")).upper()
 	text = "".join(c for c in text if not unicodedata.combining(c))
@@ -59,7 +57,7 @@ def _words(text: str, keyword: bool = False) -> list[str]:
 	return [w for w in re.split(r"[^A-Z0-9]+", text) if w]
 
 def _title_has(summary: str, keyword: str) -> bool:
-	"""The keyword's words in a row in the title, as whole words."""
+	"""whole keyword in the title"""
 	kw = _words(keyword, keyword=True)
 	if not kw:
 		return False
@@ -68,8 +66,7 @@ def _title_has(summary: str, keyword: str) -> bool:
 
 def _from_backend(ev: dict) -> dict:
 	"""
-	Backend event {uid, summary, date, start, end, allDay} as a CSV row (get_events), the
-	format the rest of the notifier reads: Rome times with offset, all-day end exclusive.
+	event from backend as a CSV row
 	"""
 	row = {"uid": ev["uid"], "summary": ev["summary"], "description": "",
 	       "start.date": "", "start.dateTime": "", "start.timeZone": "Europe/Rome",
@@ -87,9 +84,8 @@ def _from_backend(ev: dict) -> dict:
 
 def search_events(keywords: list[str], date_from: str, date_to: str) -> dict | None:
 	"""
-	The events of those days (YYYY-MM-DD, included) that concern the keywords, from the
-	backend: the same endpoint and rules as "Cerca eventi" and the timetable page (whole
-	years like "CLASSI PRIME", joint classes, teachers' names, rooms), on the school calendar.
+	The events of those days (YYYY-MM-DD, included) that match the keywords, from
+	backend
 
 	Returns:
 		dict: {"events": [CSV-like rows], "matches": keyword -> set of uids,
@@ -126,9 +122,8 @@ def search_events(keywords: list[str], date_from: str, date_to: str) -> dict | N
 
 def filter_events_kw(events, keywords, matches: dict | None = None, optin=()):
 	"""
-	Events that concern any of the keywords: from the backend's matches when available
-	(plus the opt-in categories the user chose), else (or for a keyword it did not answer)
-	the keyword's words in the title.
+	return events that match the keywords
+	optin includes the opt-in categories of the user
 	"""
 	if not keywords:
 		return []
@@ -147,4 +142,4 @@ def filter_events_kw(events, keywords, matches: dict | None = None, optin=()):
 	]
 
 def remove_sent_events(events, sent):
-	return [event for event in events if event["uid"] not in sent]
+	return [event for event in events if event["uid"] not in sent]

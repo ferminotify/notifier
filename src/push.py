@@ -1,8 +1,3 @@
-"""
-Push notifications (web push through the backend's /user/push/notify), sent in the same
-round as email and Telegram, on the same events and keyword matches.
-Ported from ferminotify/notifier-push: same texts, timing and push_sent table per device.
-"""
 import os
 from datetime import datetime, timedelta
 import pytz
@@ -17,8 +12,7 @@ TZ = pytz.timezone("Europe/Rome")
 
 def _parse_event_datetime(ev: dict, tz):
     """Return (start_date, start_time, end_date, end_time).
-    Each value may be None. Accepts ISO datetimes or already-formatted HH:MM strings;
-    also checks start.date / end.date. Keeps parsing defensive and logs on parse failures.
+    Accepts ISO datetimes or HH:MM strings; also checks start.date / end.date
     """
     start_date = None
     start_time = ''

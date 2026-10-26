@@ -101,36 +101,32 @@ class Telegram:
             return
         # inbox_messages = self.bot.getUpdates(offset=self.DB.get_tg_offset())
         for message in inbox_messages:
-            for sub in subs:
-                # The next lines I check if I got messages from any
-                # new user or some stranger (first 2 lines to check 
-                # if I didn't get messages from groups, last one 
-                # check for the message that i got from my new user)
-                if "my_chat_member" not in message.keys():
-                    try:
-                        if ("new_chat_participant" not in message["message"]) and \
-                            ("left_chat_participant" not in message["message"]) and \
-                            ("document" not in message["message"].keys()):
-                            if message["message"]["text"] == sub["telegram"]:
-                                user_email = sub["email"]
-                                telegram_id = message["message"]["from"]["id"]
+            msg = message.get("message") or {}
+            text = msg.get("text")
+            if not text or "new_chat_participant" in msg or "left_chat_participant" in msg:
+                continue
+            sub = next((s for s in subs if s["telegram"] is not None and text == str(s["telegram"])), None)
+            if sub is None:
+                continue
+            try:
+                user_email = sub["email"]
+                telegram_id = msg["from"]["id"]
 
-                                # check if telegram is already registered to another user
-                                for s in subs:
-                                    if s["telegram"] != None and str(s["telegram"]) == str(telegram_id):
-                                        # tg account connected to another fn user
-                                        self.DB.update_telegram_id(s["email"], generate_temporary_telegram_code(subs))
-                                        logger.info(f"Telegram ID {s['telegram']} was already connected to {s['email']}. Disconnecting...")
-                                        break
+                # check if telegram is already registered to another user
+                for s in subs:
+                    if s["telegram"] != None and str(s["telegram"]) == str(telegram_id):
+                        # tg account connected to another fn user
+                        self.DB.update_telegram_id(s["email"], generate_temporary_telegram_code(subs))
+                        logger.info(f"Telegram ID {s['telegram']} was already connected to {s['email']}. Disconnecting...")
+                        break
 
-                                self.DB.update_tg_offset(message["update_id"]) # i have no idea what this does
-                                self.DB.update_telegram_id(user_email, telegram_id)
-                                self.DB.set_pref_telegram(user_email)
-                                self.user_welcome(telegram_id)
-                                logger.info(f"User {user_email} registered with telegram ID {telegram_id}.")
-                    except Exception as e:
-                        logger.error(f"Error processing message: {e}")
-                        logger.error(f"Message causing error: {message}")
+                self.DB.update_tg_offset(message["update_id"]) # i have no idea what this does
+                self.DB.update_telegram_id(user_email, telegram_id)
+                self.DB.set_pref_telegram(user_email)
+                self.user_welcome(telegram_id)
+                logger.info(f"User {user_email} registered with telegram ID {telegram_id}.")
+            except Exception as e:
+                logger.error(f"Error registering Telegram update {message.get('update_id')}: {e}")
 
 def generate_temporary_telegram_code(subs) -> str:
     code = "X"

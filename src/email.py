@@ -1,7 +1,4 @@
 import smtplib
-import email
-from email.header import decode_header
-from urllib.parse import parse_qs
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.message import EmailMessage
@@ -10,8 +7,6 @@ from dotenv import load_dotenv
 import imaplib
 from datetime import datetime, timezone, timedelta
 from jinja2 import Environment, FileSystemLoader
-from src.db import unsub_user # TODO optimize unsub
-import traceback
 env = Environment(loader=FileSystemLoader('src/email_templates'))
 from src.logger import Logger
 logger = Logger()
@@ -200,7 +195,7 @@ def notify_admin(new_user: str) -> None:
 
 def unsubscribe_headers(sub: dict) -> dict:
 	"""
-	The email client's own "Annulla iscrizione", one click (RFC 8058): the client POSTs to the
+	The email client's unsubscribe, one click (RFC 8058): the client POSTs to the
 	backend's /unsubscribe, which turns the emails off (Telegram and push stay).
 	"""
 	api = os.getenv("PUBLIC_API_URL", "https://api.fn.lkev.in").rstrip("/")
@@ -274,76 +269,3 @@ def get_email_body(sub: dict, events_today: list, events_tomorrow: list, similar
 		return body
 	except Exception as e:
 		raise Exception(f"Error generating email body: {e}")
-
-def unsub() -> int:
-    try:
-        imap = imaplib.IMAP4_SSL(os.getenv('EMAIL_SERVICE_UNSUB_URL'))
-        imap.login("unsubscribe@fn.lkev.in", os.getenv('EMAIL_SERVICE_UNSUB_PASSWORD'))
-        imap.select('INBOX')
-
-        # Search for unsubscribe messages
-        status, messages = imap.search(None, 'SUBJECT "Unsubscribe :(" UNSEEN')
-
-        c = 0
-
-        # If no new messages, return
-        if status != 'OK' or not messages[0]:
-            logger.debug("No new unsubscribe requests.")
-            return c
-
-        message_ids = messages[0].split()
-
-        for msg_id in message_ids:
-            # Fetch the email by ID
-            status, msg_data = imap.fetch(msg_id, '(RFC822)')
-            if status != 'OK':
-                continue
-
-            for response_part in msg_data:
-                if isinstance(response_part, tuple):
-                    # Parse the email content
-                    try:
-                        msg = email.message_from_bytes(response_part[1])
-                        subject, encoding = decode_header(msg.get('Subject', '') or '')[0]
-
-                        if isinstance(subject, bytes):
-                            subject = subject.decode(encoding if encoding else 'utf-8')
-
-                        if subject == "Unsubscribe :(":
-                            # Extract the body content
-                            body = msg.get_payload(decode=True)
-                            if body is None:
-                                logger.warning(f"Message ID {msg_id} has no body. Skipping.")
-                                continue
-
-                            body = body.decode(errors='ignore')  # Avoid decode errors
-
-                            # Parse the body for user info
-                            params = parse_qs(body)
-                            user_email = params.get("email", [None])[0]
-                            user_id = params.get("id", [None])[0]
-                            unsub_token = params.get("unsub_token", [None])[0]
-
-                            if user_email and user_id and unsub_token:
-                                logger.debug(f"Unsubscribe request for user: {user_email}, ID: {user_id}, Token: {unsub_token}")
-                                # Unsubscribe the user
-                                unsub_user(user_email, user_id, unsub_token)
-                                imap.store(msg_id, '+FLAGS', '\\Flagged')
-                                c += 1
-                            else:
-                                logger.warning(f"Message ID {msg_id} has incomplete data. Skipping.")
-
-                    except Exception as e:
-                        logger.error(f"Failed to process message ID {msg_id}: {e}")
-                        continue
-
-        # Close the connection and log out
-        imap.close()
-        imap.logout()
-
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        logger.error(f"Error while checking for unsubscribed users: {e}")
-        raise
-
-    return c

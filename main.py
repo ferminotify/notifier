@@ -4,7 +4,6 @@ from src.events import get_events, filter_events_kw, search_events, remove_sent_
 from datetime import datetime, timedelta
 from src.notifications import send_notification
 from src.push import send_pushes
-from src.email import unsub
 from time import sleep
 import pytz
 
@@ -39,32 +38,22 @@ def main():
 		register_new_telegram_user(subs, DB)
 		logger.info("[2] Registered new telegram users.")
 
-		# 3. Check if any user has unsubscribed
-		'''
-		try:
-			logger.info(f"[3] Unsubscribed {unsub()} users.")
-		except Exception as e:
-			logger.error(f"[X] Error while checking for unsubscribed users: {e}")
-			errors += 1
-		'''
+		subs = [sub for sub in subs if sub["notification_preferences"] != 0]
 
-		# 4. Today's and tomorrow's events for every user's keywords, from the backend (the
-		# school calendar, same rules as "Cerca eventi" and the timetable page), in one request.
-		# Only the keywords set: "probable" events (the most similar class name) are gone, the
-		# dashboard flags keywords that are no class instead.
-		all_keywords = [kw for sub in subs if sub["notification_preferences"] != 0 for kw in (sub["tags"] or [])]
-		all_keywords += [kw for sub in push_subs for kw in (sub["keywords"] or [])]
+		# 3. Get today's and tomorrow's events for every user's keywords from backend
+		all_keywords = [kw for sub in subs for kw in (sub["tags"] or [])] # std users
+		all_keywords += [kw for sub in push_subs for kw in (sub["keywords"] or [])] # push users TODO refactor users kw --> send to push devices (da cambiare notification_preferences logic)
 		today_rome = datetime.now(pytz.timezone("Europe/Rome")).replace(hour=0, minute=0, second=0, microsecond=0)
 		tomorrow_rome = today_rome + timedelta(days=1)
 		matches = search_events(all_keywords, today_rome.strftime("%Y-%m-%d"), tomorrow_rome.strftime("%Y-%m-%d"))
 		if matches is not None:
 			events = matches["events"]
-			logger.info(f"[4] Events and keywords from the backend.")
+			logger.info(f"[3] {len(events)} events and keywords from the backend.")
 		else:
-			# Backend down: the CSV, and the keywords' words in the titles
+			# fallback to csv
 			events = get_events() # sample ==> events
-			logger.info(f"[4] Events from the CSV, keywords matched locally (backend unavailable).")
-		# 4.1. Filter events of today and tomorrow
+			logger.info(f"[3] {len(events)} events from the CSV, keywords matched locally (backend unavailable).")
+		# 3.1. split events of today and tomorrow
 		events_today = [
 			event for event in events
 			if (
@@ -89,11 +78,11 @@ def main():
 				tomorrow_rome.date() <= datetime.strptime(event["start.date"], "%Y-%m-%d").date() < tomorrow_rome.date() + timedelta(days=1)
 			)
 		]
-		# Push reads the ISO times: its own copies, before 4.2 reformats them for email/Telegram
+		# Push reads ISO times
 		push_today = [dict(e) for e in events_today]
 		push_tomorrow = [dict(e) for e in events_tomorrow]
 
-		# 4.2 Reformat events time
+		# 3.2 Reformat events time
 		for event in events_today + events_tomorrow:
 			if event.get('start.date'):
 				event['start.date'] = datetime.strptime(event['start.date'], '%Y-%m-%d').strftime('%d/%m/%Y')
@@ -105,26 +94,21 @@ def main():
 				event['end.dateTime'] = datetime.strptime(event['end.dateTime'], '%Y-%m-%dT%H:%M:%S%z').strftime('%H:%M')
 			# not covered case: multi-day event with start.dateTime and end.dateTime in different days
 		
-		logger.info(f"[4] Got {len(events_today)} events of today and {len(events_tomorrow)} of tomorrow.")	
+		logger.info(f"[3] Got {len(events_today)} events of today and {len(events_tomorrow)} of tomorrow.")	
 
-		# 5. Check for each user if there are events to notify
-		logger.info("[5] Checking for events to notify...")
+		# 4. Check for each user if there are events to notify
+		logger.info("[4] Checking for events to notify...")
 		for sub in subs:
 
 			logger.debug(f"Checking subscriber {sub['email']}...")
 
-			# 5.0. Check if the user has any notification preference
-			if sub["notification_preferences"] == 0:
-				logger.debug(f"No notification preference set for {sub['email']}.")
-				continue
-
-			# 5.1.1 Filter all events that don't match the user's keywords
+			# 4.1 Filter all events that don't match the user's keywords
 			_events_today = filter_events_kw(events_today, sub["tags"], matches, sub.get("notify_optin"))
 			_events_tomorrow = filter_events_kw(events_tomorrow, sub["tags"], matches, sub.get("notify_optin"))
 			if not (_events_today or _events_tomorrow):
 				continue
 
-			# 5.2. Get the events that the user has already been notified 
+			# 4.2. Get the events that the user has already been notified 
 			sent = DB.get_all_sent_id(sub["id"])
 			# filter all events that have not been notified yet
 			_events_today = remove_sent_events(_events_today, sent)
@@ -132,7 +116,7 @@ def main():
 			if not (_events_today or _events_tomorrow):
 				continue
 
-			# 5.3. Send the notifications
+			# 4.3. Send the notifications
 			# Check if it's time for Daily Notification
 			
 			# Convert the notification time to a datetime object
@@ -174,25 +158,25 @@ def main():
 				logger.error(f"[X] Error sending notification to {sub['email']}: {e}")
 				errors += 1
 		
-		# 5.4 Push notifications, same events and matches (was the separate notifier-push)
+		# 4.4 Push notifications, same events and matches (was the separate notifier-push)
 		pushed, push_errors = send_pushes(DB, push_subs, push_today, push_tomorrow, matches)
-		logger.info(f"[5] Sent push to {pushed} devices with {push_errors} errors.")
+		logger.info(f"[4] Sent push to {pushed} devices with {push_errors} errors.")
 		notifications += pushed
 		errors += push_errors
 
 		time_diff = datetime.now(pytz.timezone("Europe/Rome")) - time_start
 
 		if errors > 0:
-			logger.error(f"[5] Sent {notifications} notifications with {errors} errors [{int(time_diff.total_seconds() // 60)}m {int(time_diff.total_seconds() % 60):02d}s].")
+			logger.error(f"[4] Sent {notifications} notifications with {errors} errors [{int(time_diff.total_seconds() // 60)}m {int(time_diff.total_seconds() % 60):02d}s].")
 		else:
-			logger.success(f"[5] Sent {notifications} notifications with {errors} errors [{int(time_diff.total_seconds() // 60)}m {int(time_diff.total_seconds() % 60):02d}s].")
+			logger.success(f"[4] Sent {notifications} notifications [{int(time_diff.total_seconds() // 60)}m {int(time_diff.total_seconds() % 60):02d}s].")
 
-		# 6. Clear DB Logs if last log is success
+		# 5. Clear DB Logs if last log is success
 		clearDBLog()
-		logger.console("[6] Cleared DB Logs.")
+		logger.console("[5] Cleared DB Logs.")
 
-		# 7. Sleep
-		logger.console("[7] Sleeping...")
+		# 6. Sleep
+		logger.console("[6] Sleeping...")
 		sleep(300)
 
 		# Close DB connection
