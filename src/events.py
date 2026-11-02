@@ -17,11 +17,6 @@ def get_events() -> list[dict]:
 	"""
 	Get events from Google Sheets as a CSV file.
 
-	This file is obtained through a Google Script that takes the events from the
-	Fermi Calendar
-	and puts them in a CSV file.
-	The events in the file get deleted after a day to optimize the operations.
-
 	Returns:
 		list: list of dictionaries containing all the events.
 	"""
@@ -91,7 +86,7 @@ def search_events(keywords: list[str], date_from: str, date_to: str) -> dict | N
 		dict: {"events": [CSV-like rows], "matches": keyword -> set of uids,
 		"optional": keyword -> category -> set of uids}, or None when the backend is not
 		reachable (the caller then reads the CSV and searches the words itself). "optional":
-		opt-in activities (help desks…) reaching the keyword's class only through its year,
+		opt-in activities (help desks…) reaching the keyword's class, through its year or by name,
 		sent only to users with that category in notify_optin.
 	"""
 	url = os.getenv("BACKEND_URL")

@@ -105,7 +105,9 @@ class Telegram:
             text = msg.get("text")
             if not text or "new_chat_participant" in msg or "left_chat_participant" in msg:
                 continue
-            sub = next((s for s in subs if s["telegram"] is not None and text == str(s["telegram"])), None)
+            # Only a link code: a linked account keeps its chat id in the same column, and a
+            # chat id is no secret (sending it would move that account to the sender's chat).
+            sub = next((s for s in subs if is_link_code(s["telegram"]) and text == s["telegram"]), None)
             if sub is None:
                 continue
             try:
@@ -127,6 +129,11 @@ class Telegram:
                 logger.info(f"User {user_email} registered with telegram ID {telegram_id}.")
             except Exception as e:
                 logger.error(f"Error registering Telegram update {message.get('update_id')}: {e}")
+
+def is_link_code(value) -> bool:
+    """subscribers.telegram holds the code to send to the bot until Telegram is linked, then
+    the chat id. Codes start with "X" (here and in the backend's getTelegramTemporaryCode)."""
+    return isinstance(value, str) and value.startswith("X")
 
 def generate_temporary_telegram_code(subs) -> str:
     code = "X"
