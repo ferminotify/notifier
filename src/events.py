@@ -51,13 +51,21 @@ def _words(text: str, keyword: bool = False) -> list[str]:
 	text = re.sub(r"\b([1-5])\s+([A-Z])", r"\1\2", text)  # "3 CIIN"
 	return [w for w in re.split(r"[^A-Z0-9]+", text) if w]
 
+def _old_has(summary: str, keyword: str) -> bool:
+	"""old notifier's rule (symbols as spaces, whole word): nothing it found is lost"""
+	keyword = str(keyword or "")
+	if not keyword.strip():
+		return False
+	title = re.sub(r"\s+", " ", re.sub(r"[^a-zA-Z0-9]", " ", str(summary or ""))).strip().lower()
+	return re.search(r"\b" + re.escape(keyword.lower()) + r"\b", title) is not None
+
 def _title_has(summary: str, keyword: str) -> bool:
 	"""whole keyword in the title"""
 	kw = _words(keyword, keyword=True)
-	if not kw:
-		return False
 	w = _words(summary)
-	return any(w[i:i + len(kw)] == kw for i in range(len(w) - len(kw) + 1))
+	if kw and any(w[i:i + len(kw)] == kw for i in range(len(w) - len(kw) + 1)):
+		return True
+	return _old_has(summary, keyword)
 
 def _from_backend(ev: dict) -> dict:
 	"""
@@ -87,7 +95,7 @@ def search_events(keywords: list[str], date_from: str, date_to: str) -> dict | N
 		"optional": keyword -> category -> set of uids}, or None when the backend is not
 		reachable (the caller then reads the CSV and searches the words itself). "optional":
 		opt-in activities (help desks…) reaching the keyword's class, through its year or by name,
-		sent only to users with that category in notify_optin.
+		sent only to users with that category in notify_optin ("sportelli+gruppo": both).
 	"""
 	url = os.getenv("BACKEND_URL")
 	key = os.getenv("NOTIFICATION_API_KEY")
@@ -118,17 +126,19 @@ def search_events(keywords: list[str], date_from: str, date_to: str) -> dict | N
 def filter_events_kw(events, keywords, matches: dict | None = None, optin=()):
 	"""
 	return events that match the keywords
-	optin includes the opt-in categories of the user
+	optin includes the opt-in categories of the user ("sportelli+gruppo": both needed)
 	"""
 	if not keywords:
 		return []
+	mine = set(optin or ())
 	uids = set()
 	local = []
 	for kw in keywords:
 		if matches is not None and kw in matches["matches"]:
 			uids |= matches["matches"][kw]
-			for cat in optin or ():
-				uids |= matches["optional"].get(kw, {}).get(cat, set())
+			for cat, ids in matches["optional"].get(kw, {}).items():
+				if set(cat.split("+")) <= mine:
+					uids |= ids
 		else:
 			local.append(kw)
 	return [
