@@ -62,7 +62,7 @@ class Telegram:
         """
         self.chat_notification(message = {
             "receiver": telegram_id, 
-            "body": "Registrazione effettuata correttamente. \nAbilita la notifica via telegram nella tua dashboard (https://fn.lkev.in/dashboard)" 
+            "body": "Registrazione effettuata correttamente. \nAggiungi le tue keyword nella dashboard (https://fn.lkev.in/dashboard)"
         })
         logger.debug(f"Welcome message sent to {telegram_id}.")
 
