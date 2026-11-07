@@ -64,13 +64,13 @@ class NotifierDB():
 		return
 
 	def get_subscribers(self) -> list[tuple]:
-		"""Returns a list of all the subscribers in the database as a list of 
-		tuples.
+		"""Returns the confirmed subscribers in the database as a list of
+		dictionaries.
 
 		Returns:
 			list: list of tuples containing all the subscribers.
 		"""
-		self.cursor.execute("SELECT * FROM subscribers")
+		self.cursor.execute("SELECT * FROM subscribers WHERE notifications >= 0")
 		fetched_subscribers = self.cursor.fetchall()
 		self.connection.commit()
 
@@ -182,56 +182,61 @@ class NotifierDB():
 		return
 	
 	def set_pref_telegram(self, user_email: str) -> None:
-		"""Set the notification preference of a user to telegram true.
+		"""Turn Telegram on for a user, keeping their email choice: 0 → 1, 2 → 3.
 
 		Args:
 			user_email (str): email of the user.
 		"""
-		self.cursor.execute(f"""
-			UPDATE subscribers
-				SET notification_preferences = 3
-			WHERE email = '{user_email}';
-		""")
+		# Preferences: 1 = Telegram, 2 = email, 3 = both. Bit 1 is Telegram.
+		self.cursor.execute(
+			"UPDATE subscribers SET notification_preferences = COALESCE(notification_preferences, 0) | 1 WHERE email = %s",
+			(user_email,)
+		)
 		self.connection.commit()
-		logger.debug(f"Set notification preference to telegram true (3) for user with email {user_email}.")
+		logger.debug(f"Turned Telegram notifications on for user with email {user_email}.")
 		
 		return
 	
-	def get_similar_classes(self, keywords: list[str]) -> list[str]:
-		# classes table must have pg_trgm extension enabled
-		# CREATE EXTENSION pg_trgm;
-		# classes table must have a GIN index on the name column
-		# CREATE INDEX idx_classes_name_trgm ON classes USING gin (name gin_trgm_ops);
-		"""Get similar classes from the database based on fuzzy matching.
-
-		Args:
-			keywords (list): list of keywords.
-
-		Returns:
-			list: list of similar classes.
-		"""
-		
-		if not keywords:
-			return []
-
-		keywords = [kw.replace(" ", "") for kw in keywords] # remove spaces
-
+	def get_subscribers_push(self) -> list[dict]:
+		"""Push devices with their user's keywords and notification settings, one row per
+		device."""
 		self.cursor.execute("""
-			SELECT c.name AS best_match
-			FROM UNNEST(%s::text[]) AS kw(word)
-			JOIN LATERAL (
-				SELECT name
-				FROM classes
-				WHERE name %% kw.word
-				  AND similarity(name, kw.word) > 0.3
-				ORDER BY similarity(name, kw.word) DESC
-				LIMIT 1
-			) c ON true
-		""", (keywords,))
-		response = self.cursor.fetchall()
+			SELECT
+				p.sub_id AS id,
+				p.endpoint,
+				p.send_push_with_notifications,
+				p.device_id,
+				s.tags AS keywords,
+				s.notification_day_before,
+				s.notification_time,
+				s.email,
+				s.notify_optin
+			FROM push AS p
+			JOIN subscribers AS s ON p.sub_id = s.id
+		""")
+		rows = self.cursor.fetchall()
 		self.connection.commit()
+		column_names = [desc[0] for desc in self.cursor.description]
+		logger.debug("Fetched all push subscribers from the database.")
+		return [dict(zip(column_names, row)) for row in rows]
 
-		return [row[0] for row in response]
+	def get_all_sent_push_id(self, user_id: int, device_id: str) -> list[str]:
+		"""Event uids already pushed to this device of the user."""
+		self.cursor.execute(
+			"SELECT uid FROM push_sent WHERE sub_id = %s AND device_id = %s",
+			(user_id, device_id)
+		)
+		response = [row[0] for row in self.cursor.fetchall()]
+		self.connection.commit()
+		return response
+
+	def store_push_sent(self, user_id: int, event_id: str, device_id: str) -> None:
+		"""Record an event pushed to a device."""
+		self.cursor.execute(
+			"INSERT INTO push_sent (sub_id, uid, device_id) VALUES (%s, %s, %s)",
+			(user_id, event_id, device_id)
+		)
+		self.connection.commit()
 
 def store_notification(user_id: int, notified_events: list, DB: NotifierDB) -> None:
 	"""For each notified event, store the notification in the database
@@ -247,45 +252,3 @@ def store_notification(user_id: int, notified_events: list, DB: NotifierDB) -> N
 		DB.increment_notification_number(user_id)
 	logger.debug(f"Stored notifications for user ID {user_id}.")
 	return
-	
-# TODO optimize
-def unsub_user(email: str, user_id: str, unsub_token: str) -> None:
-	'''
-	Unsubscribe the user from the service.
-	'''
-	# Unsubscribe the user
-	logger.debug(f"Unsubscribing user: {email}, ID: {user_id}, Token: {unsub_token}")
-
-	DB = NotifierDB()
-	try:
-		# Use parameterized queries to avoid SQL injection
-		DB.cursor.execute("SELECT notification_preferences FROM subscribers WHERE id = %s AND unsub_token = %s AND email = %s", (user_id, unsub_token, email))
-		
-		# Check if the user exists
-		if DB.cursor.rowcount == 0:
-			raise Exception(f"User not found: {email}, ID: {user_id}, Token: {unsub_token}")
-
-		# Fetch notification preferences
-		notification_preferences = DB.cursor.fetchone()[0]
-
-		# Update preferences based on current notification_preferences
-		if notification_preferences == 2:
-			DB.cursor.execute(
-				"UPDATE subscribers SET notification_preferences = 0 WHERE id = %s AND unsub_token = %s AND email = %s",
-				(user_id, unsub_token, email)
-			)
-		elif notification_preferences == 3:
-			DB.cursor.execute(
-				"UPDATE subscribers SET notification_preferences = 1 WHERE id = %s AND unsub_token = %s AND email = %s",
-				(user_id, unsub_token, email)
-			)
-
-		# Commit changes
-		DB.connection.commit()
-
-	except Exception as e:
-		raise e
-
-	finally:
-		# Close the database connection
-		DB.close_connection()

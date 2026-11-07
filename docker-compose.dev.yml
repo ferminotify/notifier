@@ -25,13 +25,14 @@ services:
       EMAIL_SERVICE_AZURE_PASSWORD: test
       EMAIL_SERVICE_AZURE_USERNAME: test@example.com
       EMAIL_SERVICE_MAILGUN_URL: mailpit
-      EMAIL_SERVICE_UNSUB_URL: mailpit
-      EMAIL_SERVICE_UNSUB_PASSWORD: test
       # Telegram: leave empty to skip bot registration gracefully
       TELEGRAM_API_KEY: ""
       ENVIROMENT: development
       LOG_LEVEL: DEBUG
       TZ: Europe/Rome
+      # Push + keyword matching go through the backend (same key as its compose).
+      BACKEND_URL: http://backend:3001
+      NOTIFICATION_API_KEY: dev-broadcast-key
     networks:
       - ferminotify-dev
 
