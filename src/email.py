@@ -5,6 +5,7 @@ from email.message import EmailMessage
 import os
 from dotenv import load_dotenv
 import imaplib
+import uuid
 from datetime import datetime, timezone, timedelta
 from jinja2 import Environment, FileSystemLoader
 env = Environment(loader=FileSystemLoader('src/email_templates'))
@@ -204,11 +205,21 @@ def unsubscribe_headers(sub: dict) -> dict:
 		"List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
 	}
 
-def email_notification(sub: dict, events: list, type: str) -> None:
+def open_pixel_url(email_id: str) -> str:
+	"""
+	The 1x1 image of a tracked email (docs/email-aperture.md): the backend's GET /i/<id>.gif
+	records the first open in email_sends. On staging PUBLIC_API_URL is the staging backend.
+	"""
+	api = os.getenv("PUBLIC_API_URL", "https://api.fn.lkev.in").rstrip("/")
+	return f"{api}/i/{email_id}.gif"
+
+def email_notification(sub: dict, events: list, type: str) -> str:
 	'''
 	This function is interfaced with the notifications.py
+	Returns the email's id (email_sends.id, the token of its open-tracking image) once sent.
 	'''
 	logger.debug(f"Sending {type} email to {sub['email']}.")
+	email_id = str(uuid.uuid4())
 	# Prepare the email
 	# events 	[0][0] = events today, events [0][1] = events tomorrow
 	# 			[1][0] = similar events today, events [1][1] = similar events tomorrow
@@ -224,12 +235,12 @@ def email_notification(sub: dict, events: list, type: str) -> None:
 	}
 	email["Subject"] = f"{type} ({total_events} event{'i' if total_events > 1 else 'o'})" if type == 'Daily Notification' else type
 	try:
-		email["Body"] = get_email_body(sub, events_today, events_tomorrow, similar_events_today, similar_events_tomorrow, type)
+		email["Body"] = get_email_body(sub, events_today, events_tomorrow, similar_events_today, similar_events_tomorrow, type, open_pixel_url(email_id))
 	except Exception as e:
 		raise e
 	logger.debug(f"Generated notification mail body for {sub['email']}.")
 	send_email(email)
-	return
+	return email_id
 
 
 ###############################################
@@ -239,7 +250,7 @@ def email_notification(sub: dict, events: list, type: str) -> None:
 #											  #
 #											  #
 ###############################################
-def get_email_body(sub: dict, events_today: list, events_tomorrow: list, similar_events_today: list, similar_events_tomorrow: list, type: str) -> str:
+def get_email_body(sub: dict, events_today: list, events_tomorrow: list, similar_events_today: list, similar_events_tomorrow: list, type: str, pixel_url: str = None) -> str:
 	'''
 	Get the HTML body of the email.
 	'''
@@ -261,6 +272,7 @@ def get_email_body(sub: dict, events_today: list, events_tomorrow: list, similar
 			'similar_events_tomorrow': similar_events_tomorrow,
 			'date_today': f"{giorns[datetime.now().weekday()]} {datetime.now().strftime('%d/%m')}",
 			'date_tomorrow': f"{giorns[(datetime.now() + timedelta(days=1)).weekday()]} {(datetime.now() + timedelta(days=1)).strftime('%d/%m')}",
+			'open_pixel_url': pixel_url,
 		}
 		
 		template = env.get_template('mail_notification.html')

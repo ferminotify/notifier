@@ -238,6 +238,57 @@ class NotifierDB():
 		)
 		self.connection.commit()
 
+	# --- Email tracking and dead mailboxes (docs/email-aperture.md, docs/email-caselle-morte.md) ---
+
+	CHECK_AFTER_DAYS = 3  # wait before checking a mailbox again (Azure's suppression lasts >= 24 h)
+	MAX_CHECKS = 3        # checks sent after the mailbox was turned off
+	KEEP_MONTHS = 6       # email_sends and email_bounces
+
+	def store_email_send(self, user_id: int, email_id: str, kind: str) -> None:
+		"""A sent email, for its open-tracking image (GET /i/<email_id>.gif on the backend)."""
+		self.cursor.execute(
+			"INSERT INTO email_sends (id, sub_id, kind) VALUES (%s, %s, %s)",
+			(email_id, user_id, kind)
+		)
+		self.connection.commit()
+
+	def email_check_due(self, user_id: int) -> bool:
+		"""
+		The mailbox was turned off (deleted, "5.1.1"): is it time for the one email that checks it?
+		Not if it is confirmed (a second "mailbox deleted" after it was turned off), after
+		MAX_CHECKS checks, while a check is waiting for its result (an email sent after the last
+		rejection), or before CHECK_AFTER_DAYS since the last rejection.
+		"""
+		self.cursor.execute("""
+			SELECT
+				(SELECT count(*) FROM email_bounces b
+				  WHERE b.sub_id = s.id AND b.status = 'unknown_user' AND b.at >= s.email_inactive_at),
+				(SELECT count(*) FROM email_sends e WHERE e.sub_id = s.id AND e.sent_at > s.email_inactive_at),
+				(SELECT max(b.at) FROM email_bounces b WHERE b.sub_id = s.id AND b.at >= s.email_inactive_at),
+				(SELECT max(e.sent_at) FROM email_sends e WHERE e.sub_id = s.id AND e.sent_at > s.email_inactive_at),
+				now()
+			FROM subscribers s WHERE s.id = %s AND s.email_inactive_at IS NOT NULL
+		""", (user_id,))
+		row = self.cursor.fetchone()
+		self.connection.commit()
+		if not row:
+			return True  # back on in the meantime
+		unknown, checks, last_bounce, last_check, now = row
+		if unknown >= 2 or checks >= self.MAX_CHECKS:
+			return False
+		if last_check and (not last_bounce or last_check > last_bounce):
+			return False  # a check is out, waiting for its delivery report
+		return last_bounce is not None and (now - last_bounce).total_seconds() >= self.CHECK_AFTER_DAYS * 86400
+
+	def prune_email_tracking(self) -> None:
+		"""Opens and rejections older than KEEP_MONTHS (the dead-mailbox mark in subscribers stays)."""
+		for table, column in (("email_sends", "sent_at"), ("email_bounces", "at")):
+			self.cursor.execute(
+				f"DELETE FROM {table} WHERE {column} < now() - make_interval(months => %s)",
+				(self.KEEP_MONTHS,)
+			)
+		self.connection.commit()
+
 def store_notification(user_id: int, notified_events: list, DB: NotifierDB) -> None:
 	"""For each notified event, store the notification in the database
 	and increment the number of notifications.
