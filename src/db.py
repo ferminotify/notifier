@@ -43,6 +43,13 @@ class NotifierDB():
 					user=USERNAME,
 					password=PASSWORD,
 					port=PORT_ID,
+					# Fail fast instead of hanging forever on a stuck handshake
+					connect_timeout=15,
+					# Detect dead connections (e.g. server failover) during queries
+					keepalives=1,
+					keepalives_idle=30,
+					keepalives_interval=10,
+					keepalives_count=3,
 					#sslmode='verify-full',
 					#sslrootcert=ssl_cert_path
 				)

@@ -20,7 +20,12 @@ def main():
 	'''
 	while True:
 
-		DB = NotifierDB()  # Initialize DB connection
+		try:
+			DB = NotifierDB()  # Initialize DB connection
+		except Exception as e:
+			logger.error(f"[X] Database unavailable, retrying in 60s: {e}")
+			sleep(60)
+			continue
 
 		time_start = datetime.now(pytz.timezone("Europe/Rome"))
 
@@ -175,12 +180,12 @@ def main():
 		clearDBLog()
 		logger.console("[5] Cleared DB Logs.")
 
+		# Close DB connection before sleeping so no idle connection is held
+		DB.close_connection()
+
 		# 6. Sleep
 		logger.console("[6] Sleeping...")
 		sleep(300)
-
-		# Close DB connection
-		DB.close_connection()
 
 if __name__ == "__main__":
     main()
