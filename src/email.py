@@ -38,7 +38,7 @@ class Email:
 		EMAIL_SERVICE_USERNAME = self.sender_emails[EMAIL_SENDER_INDEX]
 		load_dotenv()
 		if domain == "fermimn.edu.it":
-			# Routed through Azure (self-hosted SMTP unavailable in prod)
+			# Routed through Azure (self-hosted SMTP temporarily disabled in prod)
 			EMAIL_SERVICE_PASSWORD = os.getenv('EMAIL_SERVICE_AZURE_PASSWORD')
 			EMAIL_SERVICE_PORT = os.getenv('EMAIL_SERVICE_PORT')
 			EMAIL_SERVICE_URL = os.getenv('EMAIL_SERVICE_AZURE_URL')
@@ -150,6 +150,13 @@ class Email:
 def send_email(email: dict) -> None:
 	# if receiver email is under fermimn.edu.it then send with self hosted
 	EM = Email(email["Receiver"].split("@")[1])
+	#-------------------------------------#
+	# self-hosted temporarily disabled 
+	# Azure for @fermimn.edu.it
+	# Mailgun default
+	# Azure for backup
+	# this settings are still configured for an active self-hosted smtp email service - just change __init__ env cred when self hosted is available
+	#-------------------------------------#
 	logger.debug(f"Sending email to {email['Receiver']} with subject: {email['Subject']}.")
 	try:
 		EM.sendHTMLMail(
@@ -157,7 +164,7 @@ def send_email(email: dict) -> None:
 			email["Raw"], email["Body"], email.get("Headers")
 		)
 	except Exception as e:
-		logger.error(f"Error sending email to {email['Receiver']} ({e}). Retrying with Azure.")
+		logger.warning(f"Error sending email to {email['Receiver']} ({e}). Retrying with Azure.")
 		try:
 			EM = Email() # Use Azure
 			EM.sendHTMLMail(
@@ -165,15 +172,23 @@ def send_email(email: dict) -> None:
 				email["Raw"], email["Body"], email.get("Headers")
 			)
 		except Exception as e:
-			logger.info(f"Error sending email to {email['Receiver']} ({e}). Retrying with Self-hosted.")
-			EM = Email("fermimn.edu.it") # Use self hosted
-			EM.sendHTMLMail(
-				email["Receiver"], email["Subject"],
-				email["Raw"], email["Body"], email.get("Headers")
-			)
-	EM.closeConnection()
+			logger.error(f"Error sending email to {email['Receiver']} ({e}). Retrying with Self-hosted.")
+			try:
+				EM = Email("fermimn.edu.it") # Use self hosted
+				EM.sendHTMLMail(
+					email["Receiver"], email["Subject"],
+					email["Raw"], email["Body"], email.get("Headers")
+				)
+			except Exception as e:
+				logger.error(f"[FATAL] Definitive error while sending email to {email['Receiver']} ({e})")
+				raise
+	finally:
+		try:
+			EM.closeConnection()
+		except Exception as e:
+			logger.warning(f"Error closing SMTP connection ({e}).")
 
-	return 
+	return
 
 
 def notify_admin(new_user: str) -> None:

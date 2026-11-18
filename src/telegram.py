@@ -172,19 +172,22 @@ def register_new_telegram_user(subs: list[dict], DB: NotifierDB) -> None:
 #                                              #
 ################################################
 
-def tg_notification(sub: dict, events: list, type: str) -> None:
+def tg_notification(sub: dict, events: list, type: str) -> bool:
     """Sends a notification to the user through telegram.
 
     Args:
         sub (dict): A dictionary containing the user's info.
         events (list): A list of events to notify.
         type (str): The type of notification.
+
+    Returns:
+        bool: True if sent, False if the user did not connect telegram.
     """
 
     if str(sub["telegram"])[0] == 'X':
         # Exit the function when the user did not connect telegram.
-        logger.error("User did not connect telegram. Exiting notification function.")
-        return
+        logger.error(f"User {str(sub['id'])} did not connect telegram. Exiting notification function.")
+        return False
 
     message = {
         "receiver": sub["telegram"]
@@ -198,7 +201,7 @@ def tg_notification(sub: dict, events: list, type: str) -> None:
     TG.chat_notification(message)
     logger.debug(f"Telegram notification sent to {sub['email']}.")
 
-    return
+    return True
 
 def get_tg_message(sub: dict, events: list, type: str) -> str:
     body = ""

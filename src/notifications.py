@@ -15,8 +15,16 @@ def send_notification(sub: dict, events: list, type: str, DB: NotifierDB) -> Non
 	"""
 	# Check if the user has any notification preference
 	if sub["notification_preferences"] == 3:
-		email_notification(sub, events, type)
-		tg_notification(sub, events, type)
+		# Email failure must not block Telegram
+		email_error = None
+		try:
+			email_notification(sub, events, type)
+		except Exception as e:
+			email_error = e
+			logger.error(f"Email notification failed for {sub['email']} ({e}). Sending Telegram anyway.")
+		tg_sent = tg_notification(sub, events, type)
+		if email_error is not None and not tg_sent:
+			raise email_error
 		logger.debug(f"Email and Telegram notification sent to {sub['email']}.")
 
 	elif sub["notification_preferences"] == 2:
